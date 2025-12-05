@@ -32,6 +32,9 @@ SECTION "Game variables", WRAM0
 
 RandomSeed: ds 1
 
+PlayerTileX: ds 1
+PlayerTileY: ds 1
+
 SECTION "Entry point", ROM0
 	
 	Tiles:    
@@ -39,8 +42,21 @@ SECTION "Entry point", ROM0
 	TilesEnd:
 	
 	Sprites:	
-		INCBIN "assets/sprites.2bpp"	
+		INCBIN "assets/sprites.2bpp"
+	SpriteDataAlien1:
+		INCBIN "assets/alien1.2bpp"
+	SpriteDataAlien2:
+		INCBIN "assets/alien2.2bpp"
+	SpriteDataAlien3:
+		INCBIN "assets/alien3.2bpp"
 	SpritesEnd:
+
+SprDef_Alien1:
+db 0x08, 4, 10, 0  ; Alien 1
+SprDef_Alien2:
+db 0x0c, 5, 10, 0  ; Alien 2
+SprDef_Alien3:
+db 0x11, 5, 10, 0  ; Alien 3
 	
 
 EntryPoint:
@@ -73,7 +89,7 @@ EntryPoint:
 	ld a, LCDCF_ON | LCDCF_BGON | LCDCF_OBJON
     ld [rLCDC], a
 
-	; Setup Sprite palettes
+	; Setup default palettes
 
 	ld a, `11100100
 	ld [rOBP0], a
@@ -95,6 +111,11 @@ EntryPoint:
 	
 	; move DMA subroutine to HRAM
 	call SetupDMACopy
+
+	call SpriteAnimationsInit
+	ld de, SprDef_Alien1
+	ld a,0 ; sprite 0
+	call SpriteAnimationAdd
 
 
 .game_loop:
