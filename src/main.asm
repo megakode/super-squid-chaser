@@ -19,7 +19,8 @@ SECTION "Header", ROM0[$100]
 
 
 SECTION "OAM Data", WRAM0, ALIGN[8] ; align to 256 bytes
-
+	
+	EXPORT ShadowOAMData	
 	ShadowOAMData:
 		SprPlayerY:   ds 1
 		SprPlayerX:   ds 1
@@ -27,6 +28,7 @@ SECTION "OAM Data", WRAM0, ALIGN[8] ; align to 256 bytes
 		SprPlayerAttributes:ds 1
 		ds 4 * 39 ; reserve space for 40 sprites (4 bytes each)
 	ShadowOAMDataEnd:
+	
 
 SECTION "Game variables", WRAM0
 
@@ -120,6 +122,7 @@ EntryPoint:
 
 .game_loop:
 
+	call SpriteAnimationsUpdate
 
 	; update game logic
 

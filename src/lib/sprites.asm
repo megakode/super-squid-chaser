@@ -7,19 +7,21 @@ def AnimationStatePlayLooped    equ 1
 def AnimationStatePlayOnce      equ 2
 def AnimationStatePlayAndRemove equ 3
 
+def SizeOfSpriteAnimation	   equ 8 ; size of each sprite animation entry in bytes
+
 SpriteAnimations:
 	; Sprite animation entry format:
 	; 8 bytes each: 
 	; 0 state , (0 = inactive, 1 = play_looped, 2 = play_once, 3 = play_and_remove ),
-	; 1 sprite_index, (index of the GB OAM sprite to animate)
-	; 2 curent frame,
 	; 3 current remaining delay (counts down)
-	; 4 tile data index (starting tile number in VRAM, 0x8000 + index)
-	; 5 number of total frames
 	; 6 delay between frames (in game loops)
+	; 2 curent frame,
+	; 5 number of total frames
+	; 4 tile data index 
+	; 1 sprite_index, (index of the GB OAM sprite to animate)
 	; 7 reserved
 
-	ds 40 * 8
+	ds 40 * SizeOfSpriteAnimation
 
 
 SECTION "Sprite routines", ROM0
@@ -47,7 +49,7 @@ SpriteAnimationsInit:
 	push af
 
 	ld hl, SpriteAnimations
-	ld bc, 40 * 8 ; 40 sprite animations, 8 bytes each
+	ld bc, 40 * SizeOfSpriteAnimation ; 40 sprite animations, 8 bytes each
 	.clearSpriteAnimLoop
 	xor a
 	ld [hli], a
@@ -79,7 +81,7 @@ SpriteAnimationFindByState:
 
 	ld hl, SpriteAnimations
 	ld c, 40 ; total number of entries
-	ld de,8 ; size of each sprite animation entry
+	ld de,SizeOfSpriteAnimation ; size of each sprite animation entry
 
 	.findFreeSpriteLoop
 	ld a, [hl]                 ; Get state byte of current entry
@@ -120,57 +122,68 @@ SpriteAnimationFindByState:
 ; -----------------------------
 SpriteAnimationAdd:
 
+	push bc
+
 	ld b,AnimationStateInactive
 	call SpriteAnimationFindByState ; return hl = pointer to free slot in SpriteAnimations
 
+	push hl
 
-	; Sprite animation entry format:
-	; 8 bytes each: 
-	; 0 state , (0 = inactive, 1 = play_looped, 2 = play_once, 3 = play_and_remove ),
-	; 1 sprite_index, (index of the GB OAM sprite to animate)
-	; 2 curent frame,
-	; 3 current remaining delay (counts down)
-	; 4 tile data index 
-	; 5 number of total frames
-	; 6 delay between frames (in game loops)
-	; 7 reserved
 
-	push bc
+	; todo : check if hl = 0 (no free slot)
+
 
 	ld b, a
 	ld a, 1     ; state = play_looped
 	ld [hl], a  ; set state
-	inc hl
-	ld [hl], b  ; set sprite index
-	inc hl
+
+	; Sprite animation entry format:
+	; 8 bytes each: 
+	; 0 state , (0 = inactive, 1 = play_looped, 2 = play_once, 3 = play_and_remove ),
+	; 3 current remaining delay (counts down)
+	; 6 delay between frames (in game loops)
+	; 2 curent frame,
+	; 5 number of total frames
+	; 4 tile data index (index of frame 0 in VRAM, does not change during animation, instead the current frame is added to it and set on the shadow OAM entry)
+	; 1 sprite_index, (index of the GB OAM sprite to animate)
+	; 7 reserved
+
+	
+	inc hl     ; hl = &animation.remaining_delay
+	inc de
+	inc de     ; de = &sprite_definition.delay_between_frames
+	ld a,[de]  ; a =  *de
+	ld [hl], a ; set current remaining delay in sprite animation entry
+	inc hl     ; point to delay between frames in animation entry
+	ld [hl], a ; set delay between frames in animation entry
+	
+	inc hl ; point to current frame in animation entry
 	ld a, 0
-	ld [hl], a  ; start current frame to 0
-	inc hl
+	ld [hl], a ; set current frame to 0
+	
+	inc hl     ; point to total frames in animation entry
+	dec de     ; point back to total frames in sprite definition
+	ld a,[de]  ; get total frames from sprite definition
+	ld [hl], a ; set total frames in animation entry
+
+	dec de     ; point back to tile data index in sprite definition
+	ld a,[de]  ; get tile data index from sprite definition
+	inc hl	 ; point to tile data index in animation entry
+	ld [hl], a ; set tile data index in animation entry
 
 	; set remaining delay
-	inc de
-	inc de     ; point to delay byte in sprite definition
-	ld a,[de]  ; get delay value from sprite definition
-	ld [hl], a ; set delay value in animation entry
-	dec de
-	dec de     ; point back to start of sprite definition
-	inc hl
+	; inc de
+	; inc de     ; point to delay byte in sprite definition
+	; ld a,[de]  ; get delay value from sprite definition
+	; ld [hl], a ; set delay value in animation entry
+	; dec de
+	; dec de     ; point back to start of sprite definition
+	; inc hl
 
-	; copy 3 bytes of sprite definition data to animation entry
-	ld a,[de]
-	ld [hl], a  
-	inc de
-	inc hl
+	inc hl     ; point to sprite index in animation entry
+	ld [hl], b ; set sprite index in animation entry
 
-	ld a,[de]
-	ld [hl], a 
-	inc de
-	inc hl
-
-	ld a,[de]
-	ld [hl], a
-	inc hl
-
+	pop hl ; restore hl to point to state byte of the sprite animation entry
 	pop bc
 
 	ret 
@@ -180,8 +193,137 @@ SpriteAnimationAdd:
 ; Update all active sprite animations
 ; -----------------------------
 
+
+
 SpriteAnimationsUpdate:
-	; TODO
+	push af
+	push bc
+	push de
+	push hl
+
+	ld hl, SpriteAnimations
+	ld c, 40 ; total number of entries
+
+.nextSpriteLoop
+	ld a, [hl]                  ; Get state byte of current entry
+	cp 0					    ; IS the current animation inactive?
+	jr z, .skipCurrentAnimation ; If yes: skip it
+
+	; Active animation - process it
+
+	; get current delay
+	; decrement current remaining delay
+	; compare to zero
+	; if not zero: skip to next animation
+	; set current remaining delay to delay between frames
+	; get current frame
+	; increment frame
+	; compare to total frames
+	; if less than total frames: {
+	;    increment current frame 
+	; } else {
+	;    if play_looped: {
+	;        set current frame to 0
+	;    } else if play_once: {
+	;        set state to inactive
+	;    } else if play_and_remove: {
+	;        hide sprite
+	;        set state to inactive
+	;    }
+	; }
+	; calculate new tile number: tile data index + current frame
+	; update tile number in Shadow OAM
+
+	inc hl; skip 1 bytes ahead to current remaining delay
+	ld a, [hl]                  ; Get current delay
+	dec a                       ; Decrease delay
+	ld [hl], a                  ; Store updated delay
+	cp 0 					    ; Has the delay reached zero?
+	jr nz, .skipCurrentAnimationSub1 ; If not, skip to next animation (skip 3 bytes back to state)
+
+	; delay has reached zero - set it to delay between frames
+	inc hl                      ; skip 1 byte ahead to delay between frames
+	ld a, [hl]                  ; Get delay between frames
+	dec hl                      ; skip back to current delay
+	ld [hl], a                  ; set current remaining delay to delay between frames
+
+
+	inc hl ; 
+	inc hl ; point to current_frame
+	ld a, [hl]                  ; Get current frame
+	inc a                       ; Increase current frame
+	inc hl					    ; point to total frames
+	ld b, [hl]                  ; Get total frames
+	cp b                        ; Compare current frame with total frames
+	dec hl                      ; point back to current_frame
+	jr c, .incrementCurrentFrame; If current frame < total frames, update frame ; TODO : check if jr c is correct here
+	; current frame >= total frames
+
+	
+.maxFramesReached:
+	ld a,0
+	ld [hl], a                  ; Set current frame to 0
+	jr .currentFrameWasUpdated
+	
+.incrementCurrentFrame
+	ld a, [hl]                  ; Get current frame
+	inc a
+	ld [hl], a                  ; Store updated current frame
+	
+.currentFrameWasUpdated
+
+	                            ; a = current frame
+	inc hl                      ; point to tile data index
+	inc hl
+	ld b, [hl]                  ; b = tile data index
+	
+	add b                       ; a = tile_data_index + current_frame
+	
+	; Now a is the new tile number to set on the sprite.
+	; Next, get the sprite index and set the tile number in shadow OAM
+	inc hl                      ; point to sprite index
+	ld e, [hl]                  ; c = sprite index
+	sla e                       ; multiply by 4 (size of each oam sprite entry)
+	sla e
+
+	push hl					; save hl (points to sprite index byte in animation entry)
+
+	ld hl, ShadowOAMData
+	ld d,0
+	add hl, de                  ; point to sprite entry in shadow OAM
+	inc hl					    
+	inc hl                      ; point to tile number byte in OAM entry
+	ld [hl], a                  ; set new tile number in shadow OAM
+
+	pop hl						; restore hl
+
+	ld de,-7 ; rewind hl back to beginning of current animation entry
+	add hl, de
+	jr .skipCurrentAnimation
+
+
+.skipCurrentAnimationSub1
+
+	dec hl
+	
+.skipCurrentAnimation
+	ld de,SizeOfSpriteAnimation ; size of each sprite animation entry
+	add hl, de                  ; increase pointer to next sprite entry
+	dec c                       ; decrease loop counter
+	ld a, c 
+	cp 0                        ; have we checked all entries (counted down to zero)?
+	jr nz, .nextSpriteLoop  ; if not, continue searching
+	
+	ld hl,0 ; no free sprites available. Return 0
+
+	.done
+	; hl now points to the state byte of the free sprite
+
+	pop hl
+	pop de
+	pop bc
+	pop af
+
 	ret
 
 
@@ -198,7 +340,7 @@ SpriteSetPosition:
 
 	sla a
 	sla a
-	ld hl, STARTOF(WRAM0)
+	ld hl, ShadowOAMData
 
 	xor b ; BC = A
 	ld c, a
@@ -228,7 +370,7 @@ SpritesClear:
 	push bc
 	push af
 
-	ld hl, STARTOF(WRAM0)
+	ld hl, ShadowOAMData
 	ld bc, 4 * 40 ; 40 sprites, 4 bytes each
 	.clearSpriteLoop
 	xor a
@@ -278,7 +420,7 @@ SpriteHide:
     
 	sla a ; multiply by 4 (size of each sprite entry)
 	sla a
-	ld hl, STARTOF(WRAM0)
+	ld hl, ShadowOAMData
 
 	xor b ; BC = A
 	ld c, a
