@@ -69,8 +69,49 @@ SpriteAnimationsInit:
 
 	ret
 
+; -------------------------------------------------------
+; Find SpriteAnimation with a given sprite index
+; -------------------------------------------------------
+; Inputs:
+; B = desired sprite index to find
+; Returns:
+; HL = ptr to sprite animation entry, or 0 if none found
+; -------------------------------------------------------
 
-; -----------------------------
+SpriteAnimationFindBySpriteIndex:
+
+	push af
+	push bc
+	push de
+
+	ld hl, SpriteAnimations
+	ld c, 40                 ; total number of entries
+.findSpriteLoop
+	ld de,6
+	add hl, de               ; point to sprite index byte
+	ld a, [hl]               ; Get sprite index byte of current entry
+	cp b					 ; Does it match the sprite index we are searching for?
+	jr z, .foundIt           ; If yes: we are done!
+	inc hl
+	inc hl                   ; point to next entry
+	dec c
+	ld a, c
+	cp 0                     ; have we checked all entries (counted down to zero)?
+	jr nz, .findSpriteLoop   ; if not, continue searching
+	ld hl,0 ; no free sprites available. Return 0
+
+.foundIt
+
+	ld de,-6
+	add hl, de                ; point back to the state byte of the found sprite animation
+
+	pop de
+	pop bc
+	pop af
+
+	ret
+
+	; -----------------------------
 ; Find SpriteAnimation with a given state
 ; Inputs:
 ; B = desired state to find (0 = inactive, 1 = play_looped, 2 = play_once, 3 = play_and_remove )
@@ -108,6 +149,12 @@ SpriteAnimationFindByState:
 	pop bc
 
 	ret
+
+
+SpriteAnimationSet:
+
+
+
 
 ; -----------------------------
 ; Add Sprite Animation
