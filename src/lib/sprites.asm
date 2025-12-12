@@ -7,6 +7,11 @@ def AnimationStatePlayLooped    equ 1
 def AnimationStatePlayOnce      equ 2
 def AnimationStatePlayAndRemove equ 3
 
+export AnimationStateInactive
+export AnimationStatePlayLooped
+export AnimationStatePlayOnce
+export AnimationStatePlayAndRemove
+
 def SizeOfSpriteAnimation	   equ 8 ; size of each sprite animation entry in bytes
 
 SpriteAnimations:
@@ -117,12 +122,17 @@ SpriteAnimationFindByState:
 
 ; Inputs:
 ; a = OAM sprite index to animate
+; b = Play mode (1 = play_looped, 2 = play_once, 3 = play_and_remove)
 ; de = pointer to source sprite definition (4 bytes)
+; Returns:
+; hl = pointer to the sprite animation entry created
 
 ; -----------------------------
 SpriteAnimationAdd:
 
 	push bc
+
+	ld c,b ; save play mode in C
 
 	ld b,AnimationStateInactive
 	call SpriteAnimationFindByState ; return hl = pointer to free slot in SpriteAnimations
@@ -132,10 +142,8 @@ SpriteAnimationAdd:
 
 	; todo : check if hl = 0 (no free slot)
 
-
+	ld [hl], c  ; set state
 	ld b, a
-	ld a, 1     ; state = play_looped
-	ld [hl], a  ; set state
 
 	; Sprite animation entry format:
 	; 8 bytes each: 
@@ -206,6 +214,8 @@ SpriteAnimationsUpdate:
 
 .nextSpriteLoop
 	ld a, [hl]                  ; Get state byte of current entry
+	ld b,a 						; save state in B
+	
 	cp 0					    ; IS the current animation inactive?
 	jr z, .skipCurrentAnimation ; If yes: skip it
 
@@ -250,17 +260,39 @@ SpriteAnimationsUpdate:
 
 	inc hl ; 
 	inc hl ; point to current_frame
+	;ld CurrentFramePtr, hl
+
 	ld a, [hl]                  ; Get current frame
 	inc a                       ; Increase current frame
 	inc hl					    ; point to total frames
-	ld b, [hl]                  ; Get total frames
-	cp b                        ; Compare current frame with total frames
+	ld d, [hl]                  ; Get total frames
+	cp d                        ; Compare current frame with total frames
 	dec hl                      ; point back to current_frame
-	jr c, .incrementCurrentFrame; If current frame < total frames, update frame ; TODO : check if jr c is correct here
+	jr c, .incrementCurrentFrame; If current frame < total frames, update frame
 	; current frame >= total frames
 
+	; state should be in B
+	ld a,b
+	cp AnimationStatePlayLooped
+	jr z, .rewindToFrameZero    ; if play_looped, rewind to frame 0
+	cp AnimationStatePlayOnce
+	jr z, .setInactive          ; if play_once, set to inactive
+	cp AnimationStatePlayAndRemove
+	jr z, .hideSpriteAndSetInactive ; if play_and_remove, hide sprite and set to inactive
+	; animation has reached the end
+
+.hideSpriteAndSetInactive
+
+	; TODO: hide sprite
+
+.setInactive:
+	ld de,-3
+	add hl, de                ; rewind hl back to beginning of current animation entry
+	ld a, AnimationStateInactive
+	ld [hl], a                ; set state to inactive (rewind hl to state byte)
+	jr .currentFrameWasUpdated
 	
-.maxFramesReached:
+.rewindToFrameZero:
 	ld a,0
 	ld [hl], a                  ; Set current frame to 0
 	jr .currentFrameWasUpdated

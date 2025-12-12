@@ -53,12 +53,40 @@ SECTION "Entry point", ROM0
 		INCBIN "assets/alien3.2bpp"
 	SpritesEnd:
 
+def AlienOffset1 = (SpriteDataAlien1 - Sprites) / 16
+println "Alien 1 sprite offset in tiles: 0x{x:AlienOffset1}"
+
+def AlienOffset2 = (SpriteDataAlien2 - Sprites) / 16
+println "Alien 2 sprite offset in tiles: 0x{x:AlienOffset2}"
+
+def AlienOffset3 = (SpriteDataAlien3 - Sprites) / 16
+println "Alien 2 sprite offset in tiles: 0x{x:AlienOffset3}"
+; ----------------------------------------------
+; Sprite Definitions
+; ----------------------------------------------
+; Each sprite definition consists of:
+;
+;   - Tile data start index (1 byte)
+;   - Total frames (1 byte)
+;   - Frame delay (1 byte)
+;   - Attributes (1 byte) unused for now
+;
+; The tile data start index is the index of the first tile
+; for the sprite animation in VRAM.
+; It is not directly coupled to the tile data loaded from the
+; sprite .2bpp files, as those are loaded sequentially into VRAM.
+; Rather, just look in the debugger to see what tile index each sprite
+; starts at after loading, and use that value here.
+; ----------------------------------------------
+
 SprDef_Alien1:
-db 0x08, 4, 10, 0  ; Alien 1
+db AlienOffset1, 4, 10, 0  ; Alien 1
 SprDef_Alien2:
-db 0x0c, 5, 10, 0  ; Alien 2
+db AlienOffset2, 5, 10, 0  ; Alien 2
 SprDef_Alien3:
-db 0x11, 5, 10, 0  ; Alien 3
+db AlienOffset3, 5, 10, 0  ; Alien 3
+SprDef_Exhaust:
+db 1, 5, 10, 0
 	
 
 EntryPoint:
@@ -117,6 +145,7 @@ EntryPoint:
 	call SpriteAnimationsInit
 	ld de, SprDef_Alien1
 	ld a,0 ; sprite 0
+	ld b, AnimationStatePlayOnce
 	call SpriteAnimationAdd
 
 
@@ -176,6 +205,19 @@ EntryPoint:
 
 	jr  .game_loop
 
+
+; ------------------------
+; play move animation
+; -----------------------
+
+.PlayMoveAnimation:
+
+ld de, SprDef_Alien1
+ld a,0 ; sprite 0
+ld b, AnimationStatePlayOnce
+call SpriteAnimationAdd
+
+ret 
 
 ; -----------------------------
 ; Generate Background Pattern
