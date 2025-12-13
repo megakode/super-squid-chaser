@@ -164,6 +164,58 @@ EntryPoint:
 	; update game logic
 
 	call InputHandlerUpdate
+
+.ship_movement_start:
+.check_left:
+	ld hl,button_left_was_pressed_flag
+	ld a, [hl]
+	cp 1
+	jr nz, .check_left_done
+	; button was just pressed, move player
+	ld a,[SprPlayerX]
+	ld b,8
+	sub b
+	ld [SprPlayerX],a
+.check_left_done:
+
+.check_right:
+	ld hl,button_right_was_pressed_flag
+	ld a, [hl]
+	cp 1
+	jr nz, .check_right_done
+	; button was just pressed, move player
+	ld a,[SprPlayerX]
+	ld b,8
+	add b
+	ld [SprPlayerX],a
+.check_right_done:
+
+
+.check_up:
+	ld hl,button_up_was_pressed_flag
+	ld a, [hl]
+	cp 1
+	jr nz, .check_up_done
+	; button was just pressed, move player
+	ld a,[SprPlayerY]
+	ld b,8
+	sub b
+	ld [SprPlayerY],a
+.check_up_done:
+
+.check_down:
+	ld hl,button_down_was_pressed_flag
+	ld a, [hl]
+	cp 1
+	jr nz, .check_down_done
+	; button was just pressed, move player
+	ld a,[SprPlayerY]
+	ld b,8
+	add b
+	ld [SprPlayerY],a
+.check_down_done:
+
+.ship_movement_done:
 	
 	call WaitVBlank
 
@@ -200,6 +252,7 @@ ButtonWasReleased:
 ; --------------------------------
 export ButtonIsDown
 ButtonIsDown:
+	ret
 	cp BUTTON_RIGHT
 	jr z,.right_was_pressed
 	cp BUTTON_LEFT
