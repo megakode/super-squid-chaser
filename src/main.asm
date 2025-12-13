@@ -22,20 +22,23 @@ SECTION "OAM Data", WRAM0, ALIGN[8] ; align to 256 bytes
 	
 	EXPORT ShadowOAMData	
 	ShadowOAMData:
-		SprPlayerY:   ds 1
-		SprPlayerX:   ds 1
-		SprPlayerTileNum:   ds 1
-		SprPlayerAttributes:ds 1
+		SprPlayerY:   db
+		SprPlayerX:   db
+		SprPlayerTileNum:   db
+		SprPlayerAttributes:db
 		ds 4 * 39 ; reserve space for 40 sprites (4 bytes each)
-	ShadowOAMDataEnd:
-	
+	ShadowOAMDataEnd:	
 
 SECTION "Game variables", WRAM0
 
-RandomSeed: ds 1
+; Misc
 
-PlayerTileX: ds 1
-PlayerTileY: ds 1
+RandomSeed: db
+
+; Player 
+
+PlayerTileX: db
+PlayerTileY: db
 
 SECTION "Entry point", ROM0
 	
@@ -87,6 +90,8 @@ SprDef_Alien3:
 db AlienOffset3, 5, 10, 0  ; Alien 3
 SprDef_Exhaust:
 db 1, 5, 10, 0
+
+
 	
 
 EntryPoint:
@@ -114,21 +119,22 @@ EntryPoint:
 	call ClearScreen
 	call GenerateBackgroundPattern
 
+	
 	; Setup LCD screen
-
+	
 	ld a, LCDCF_ON | LCDCF_BGON | LCDCF_OBJON
     ld [rLCDC], a
-
+	
 	; Setup default palettes
-
+	
 	ld a, `11100100
 	ld [rOBP0], a
 	ld [rOBP1], a
 	ld [rBGP], a
-
+	
 	; Clear existing sprites
 	call SpritesClear
-
+	
 	; Setup a sprite
 	ld a,80 ; Y position
 	ld [SprPlayerY], a
@@ -141,12 +147,14 @@ EntryPoint:
 	
 	; move DMA subroutine to HRAM
 	call SetupDMACopy
-
+	
 	call SpriteAnimationsInit
-	ld de, SprDef_Alien1
-	ld a,0 ; sprite 0
-	ld b, AnimationStatePlayOnce
-	call SpriteAnimationAdd
+	call InputHandlerInit
+	
+	; ld de, SprDef_Alien1
+	; ld a,0 ; sprite 0
+	; ld b, AnimationStatePlayOnce
+	; call SpriteAnimationAdd
 
 
 .game_loop:
@@ -155,47 +163,7 @@ EntryPoint:
 
 	; update game logic
 
-	; Get input
-	ld a,JOYP_GET_DPAD
-	ld [rJOYP],a ; read joypad state
-	ld a,[rJOYP]
-	ld a,[rJOYP]
-	ld a,[rJOYP]
-	cpl ; invert bits (so pressed = 1)
-	and 0x0F ; mask to only D-Pad bits
-
-	; move player sprite based on input
-	cp JOYPF_RIGHT
-	jr z,.move_right
-	cp JOYPF_LEFT
-	jr z,.move_left
-	cp JOYPF_UP
-	jr z,.move_up
-	cp JOYPF_DOWN
-	jr z,.move_down
-	jr .no_move
-.move_right:
-	ld a,[SprPlayerX]
-	inc a
-	ld [SprPlayerX],a
-	jr .no_move
-.move_left:
-	ld a,[SprPlayerX]
-	dec a
-	ld [SprPlayerX],a
-	jr .no_move
-.move_up:
-	ld a,[SprPlayerY]
-	dec a
-	ld [SprPlayerY],a
-	jr .no_move
-.move_down:
-	ld a,[SprPlayerY]
-	inc a
-	ld [SprPlayerY],a
-.no_move:
-
-
+	call InputHandlerUpdate
 	
 	call WaitVBlank
 
@@ -204,7 +172,67 @@ EntryPoint:
 	call ExecuteDMACopy
 
 	jr  .game_loop
+	
+; --------------------------------
+; Button was pressed event handler
+; --------------------------------
+; A = button identifier
+; --------------------------------
+export ButtonWasPressed
+ButtonWasPressed:
 
+	ret
+		
+; --------------------------------
+; Button was released event handler
+; --------------------------------
+; A = button identifier
+; --------------------------------
+export ButtonWasReleased
+ButtonWasReleased:
+
+	ret
+
+; --------------------------------
+; Button is down event handler
+; --------------------------------
+; A = button identifier
+; --------------------------------
+export ButtonIsDown
+ButtonIsDown:
+	cp BUTTON_RIGHT
+	jr z,.right_was_pressed
+	cp BUTTON_LEFT
+	jr z,.left_was_pressed
+	cp BUTTON_UP
+	jr z,.up_was_pressed
+	cp BUTTON_DOWN
+	jr z,.down_was_pressed
+	ret
+
+.right_was_pressed:
+	ld a,[SprPlayerX]
+	inc a
+	ld [SprPlayerX],a
+	ret
+	
+.left_was_pressed:
+	ld a,[SprPlayerX]
+	dec a
+	ld [SprPlayerX],a
+	ret
+	
+.up_was_pressed:
+	ld a,[SprPlayerY]
+	dec a
+	ld [SprPlayerY],a
+	ret
+	
+.down_was_pressed:
+	ld a,[SprPlayerY]
+	inc a
+	ld [SprPlayerY],a
+	ret
 
 ; ------------------------
 ; play move animation
