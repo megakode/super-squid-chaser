@@ -155,7 +155,14 @@ InputHandlerUpdate:
 	ld [hl], a ; clear released flag at start of check
 	ld hl,button_down_was_released_flag
 	ld [hl], a ; clear released flag at start of check
-	
+    ld hl,button_a_was_released_flag
+	ld [hl], a ; clear released flag at start of check
+    ld hl,button_b_was_released_flag
+	ld [hl], a ; clear released flag at start of check
+	ld hl,button_start_was_released_flag
+	ld [hl], a ; clear released flag at start of check
+    ld hl,button_select_was_released_flag
+	ld [hl], a ; clear released flag at start of check
 
 ; ----------------------------------
 ; Check RIGHT button
@@ -164,8 +171,8 @@ InputHandlerUpdate:
 .button_right_check:
 
 	ld a,b ; load current input
-	cp JOYPF_RIGHT
-	jr z,.button_right_is_down
+	and JOYPF_RIGHT
+	jr nz,.button_right_is_down
 	; button is not pressed... was it previously pressed?
 	ld hl,button_right_is_down_flag
 	ld a, [hl]
@@ -220,8 +227,8 @@ InputHandlerUpdate:
 .button_left_check:
 
 	ld a,b ; load current input
-	cp JOYPF_LEFT
-	jr z,.button_left_is_down
+	and JOYPF_LEFT
+	jr nz,.button_left_is_down
 	; button is not pressed... was it previously pressed?
 	ld hl,button_left_is_down_flag
 	ld a, [hl]
@@ -277,8 +284,8 @@ InputHandlerUpdate:
 .button_down_check:
 
 	ld a,b ; load current input
-	cp JOYPF_DOWN
-	jr z,.button_down_is_down
+	and JOYPF_DOWN
+	jr nz,.button_down_is_down
 	; button is not pressed... was it previously pressed?
 	ld hl,button_down_is_down_flag
 	ld a, [hl]
@@ -334,8 +341,8 @@ InputHandlerUpdate:
 .button_up_check:
 
 	ld a,b ; load current input
-	cp JOYPF_UP
-	jr z,.button_up_is_down
+	and JOYPF_UP
+	jr nz,.button_up_is_down
 	; button is not pressed... was it previously pressed?
 	ld hl,button_up_is_down_flag
 	ld a, [hl]
@@ -383,6 +390,18 @@ InputHandlerUpdate:
 
 .button_up_check_done:
 
+; ----------------------------------
+; switch input register to read A/B/START/SELECT buttons
+; ----------------------------------
+
+    ld a,JOYP_GET_A_B_START_SELECT
+    ld [rJOYP],a ; read joypad state
+    ld a,[rJOYP]
+    ld a,[rJOYP]
+    ld a,[rJOYP]
+    cpl ; invert bits (so pressed = 1)
+    and 0xF0 ; mask to only A/B/START/SELECT bits
+    ld b,a ; store input in B
 
 ; ----------------------------------
 ; Check A button
@@ -391,8 +410,8 @@ InputHandlerUpdate:
 .button_a_check:
 
 	ld a,b ; load current input
-	cp JOYPF_A
-	jr z,.button_a_is_down
+	and JOYPF_A
+	jr nz,.button_a_is_down
 	; button is not pressed... was it previously pressed?
 	ld hl,button_a_is_down_flag
 	ld a, [hl]
@@ -447,8 +466,8 @@ InputHandlerUpdate:
 .button_b_check:
 
 	ld a,b ; load current input
-	cp JOYPF_B
-	jr z,.button_b_is_down
+	and JOYPF_B
+	jr nz,.button_b_is_down
 	; button is not pressed... was it previously pressed?
 	ld hl,button_b_is_down_flag
 	ld a, [hl]
@@ -503,8 +522,8 @@ InputHandlerUpdate:
 .button_start_check:
 
 	ld a,b ; load current input
-	cp JOYPF_START
-	jr z,.button_start_is_down
+	and JOYPF_START
+	jr nz,.button_start_is_down
 	; button is not pressed... was it previously pressed?
 	ld hl,button_start_is_down_flag
 	ld a, [hl]
@@ -560,8 +579,8 @@ InputHandlerUpdate:
 .button_select_check:
 
 	ld a,b ; load current input
-	cp JOYPF_SELECT
-	jr z,.button_select_is_down
+	and JOYPF_SELECT
+	jr nz,.button_select_is_down
 	; button is not pressed... was it previously pressed?
 	ld hl,button_select_is_down_flag
 	ld a, [hl]
