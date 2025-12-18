@@ -350,10 +350,10 @@ UpdatePlayerMovement:
 	; *** Decelerate velocity ***
 
 	; Slow down velocity (simple friction model)
-	ld hl, PlayerVelocityX
-	ld a, [hl]
-	cp 0
-	jr z, .skip_decelerate_x
+	; ld hl, PlayerVelocityX
+	; ld a, [hl]
+	; cp 0
+	; jr z, .skip_decelerate_x
 
 	
 	; PlayerVelocityX-- to simulate slow deceleration
