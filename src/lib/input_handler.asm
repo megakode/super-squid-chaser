@@ -394,7 +394,7 @@ InputHandlerUpdate:
 ; switch input register to read A/B/START/SELECT buttons
 ; ----------------------------------
 
-    ld a,JOYP_GET_A_B_START_SELECT
+	ld a,JOYP_GET_BTN
     ld [rJOYP],a ; read joypad state
     ld a,[rJOYP]
     ld a,[rJOYP]

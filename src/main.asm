@@ -37,15 +37,20 @@ RandomSeed: db
 
 ; Player 
 
-PlayerTileX: db
-PlayerTileY: db
+PlayerX: db
+PlayerY: db
+PlayerThrustX: db
+PlayerThrustY: db
+PlayerVelocityX: db
+PlayerVelocityY: db
 
 SECTION "Entry point", ROM0
 	
 	Tiles:    
 		INCBIN "assets/bg_stars.2bpp"
+		INCBIN "assets/statusbar.2bpp"
 	TilesEnd:
-	
+
 	Sprites:	
 		INCBIN "assets/sprites.2bpp"
 	SpriteDataAlien1:
@@ -55,6 +60,9 @@ SECTION "Entry point", ROM0
 	SpriteDataAlien3:
 		INCBIN "assets/alien3.2bpp"
 	SpritesEnd:
+
+;def StatusbarTileOffset = (TilesStatusbar - Tiles) / 16
+;println "Statusbar tile offset in tiles: 0x{x:StatusbarTileOffset}"
 
 def AlienOffset1 = (SpriteDataAlien1 - Sprites) / 16
 println "Alien 1 sprite offset in tiles: 0x{x:AlienOffset1}"
@@ -90,8 +98,6 @@ SprDef_Alien3:
 db AlienOffset3, 5, 10, 0  ; Alien 3
 SprDef_Exhaust:
 db 1, 5, 10, 0
-
-
 	
 
 EntryPoint:
@@ -100,31 +106,51 @@ EntryPoint:
 	xor a ; ld a, 0
 	ld [rLCDC], a
 
-	; Copy the tile data to VRAM $9000
+	; Copy BG tile data to VRAM $9000
 
 	ld de, Tiles
 	ld hl, $9000
 	ld bc, TilesEnd - Tiles
 	call Memcopy
 
+	; Copy status bar tile data to VRAM $9800
+	ld de,StatusbarTileMap
+	ld hl,$9c00 ; BG map start
+	ld bc, 20
+	call Memcopy
+
+	; Copy sprite data to VRAM $8000
+
 	ld de, Sprites
 	ld hl, $8000 
 	ld bc, SpritesEnd - Sprites
 	call Memcopy
 
-	ld a,0xab; initial seed value
+	ld a,0xab; initial PRNG seed value
 	ld [RandomSeed], a 
 
 	
 	call ClearScreen
 	call GenerateBackgroundPattern
 
+	; Show window status bar
+	call ShowStatusBar
+	; Set initial status bar values
+	ld hl,StatusBarMovementValue
+	ld [hl], DEFAULT_MOVEMENT_VALUE ; initial movement value
+	ld hl,StatusBarAmmoValue
+	ld [hl], DEFAULT_AMMO_VALUE ; initial ammo value
+	ld hl,StatusBarGemValue
+	ld [hl], DEFAULT_GEM_VALUE ; initial gem value
+
+	call StatusBarUpdate
+
 	
 	; Setup LCD screen
 	
-	ld a, LCDCF_ON | LCDCF_BGON | LCDCF_OBJON
+	ld a, LCDCF_ON | LCDCF_BGON | LCDCF_OBJON | LCDCF_WINON | LCDCF_WIN9C00 | LCDCF_BG9800 | LCDCF_PRIOFF
     ld [rLCDC], a
-	
+
 	; Setup default palettes
 	
 	ld a, `11100100
@@ -136,13 +162,24 @@ EntryPoint:
 	call SpritesClear
 	
 	; Setup a sprite
+
+	ld a,0
+	ld hl,PlayerThrustX
+	ld [hl],a
+	ld hl,PlayerThrustY
+	ld [hl],a
+	ld hl,PlayerVelocityX
+	ld [hl],a
+	ld hl,PlayerVelocityY
+	ld [hl],a
+
 	ld a,80 ; Y position
-	ld [SprPlayerY], a
+	ld [PlayerY], a
 	ld a,40 ; X position
-	ld [SprPlayerX], a
+	ld [PlayerX], a
 	ld a,0  ; Tile number
 	ld [SprPlayerTileNum], a
-	ld a,0 ; No attributes
+	ld a,`00000000 ; No attributes
 	ld [SprPlayerAttributes], a
 	
 	; move DMA subroutine to HRAM
@@ -157,6 +194,7 @@ EntryPoint:
 	; call SpriteAnimationAdd
 
 
+
 .game_loop:
 
 	call SpriteAnimationsUpdate
@@ -165,65 +203,180 @@ EntryPoint:
 
 	call InputHandlerUpdate
 
-.ship_movement_start:
-.check_left:
-	ld hl,button_left_was_pressed_flag
-	ld a, [hl]
-	cp 1
-	jr nz, .check_left_done
-	; button was just pressed, move player
-	ld a,[SprPlayerX]
-	ld b,8
-	sub b
-	ld [SprPlayerX],a
-.check_left_done:
-
-.check_right:
-	ld hl,button_right_was_pressed_flag
-	ld a, [hl]
-	cp 1
-	jr nz, .check_right_done
-	; button was just pressed, move player
-	ld a,[SprPlayerX]
-	ld b,8
-	add b
-	ld [SprPlayerX],a
-.check_right_done:
-
-
-.check_up:
-	ld hl,button_up_was_pressed_flag
-	ld a, [hl]
-	cp 1
-	jr nz, .check_up_done
-	; button was just pressed, move player
-	ld a,[SprPlayerY]
-	ld b,8
-	sub b
-	ld [SprPlayerY],a
-.check_up_done:
-
-.check_down:
-	ld hl,button_down_was_pressed_flag
-	ld a, [hl]
-	cp 1
-	jr nz, .check_down_done
-	; button was just pressed, move player
-	ld a,[SprPlayerY]
-	ld b,8
-	add b
-	ld [SprPlayerY],a
-.check_down_done:
-
-.ship_movement_done:
+	call UpdatePlayerMovement
 	
 	call WaitVBlank
+
+	call StatusBarUpdate
 
 	; call the DMA subroutine we copied to HRAM, which then copies the shadow OAM data to video memory
 	ld  a, HIGH(ShadowOAMData)
 	call ExecuteDMACopy
 
 	jr  .game_loop
+
+
+; --------------------------------
+; Update player movement
+; --------------------------------
+; Updates player position based on input and velocity
+
+UpdatePlayerMovement:
+
+	ld hl,PlayerThrustX
+	ld [hl],0
+	ld hl,PlayerThrustY
+	ld [hl],0
+
+.ship_movement_start:
+.check_left:
+	ld hl,button_left_is_down_flag
+	ld a, [hl]
+	cp 1
+	jr nz, .check_left_done
+	; button was just pressed, move player
+	ld hl,PlayerThrustX
+	ld [hl],-PLAYER_THRUST
+
+.check_left_done:
+
+.check_right:
+	ld hl,button_right_is_down_flag
+	ld a, [hl]
+	cp 1
+	jr nz, .check_right_done
+	; button was just pressed, move player
+	ld hl,PlayerThrustX
+	ld [hl],PLAYER_THRUST
+
+.check_right_done:
+
+
+.check_up:
+	ld hl,button_up_is_down_flag
+	ld a, [hl]
+	cp 1
+	jr nz, .check_up_done
+	; button was just pressed, move player
+	ld hl,PlayerThrustY
+	ld [hl],-PLAYER_THRUST
+
+.check_up_done:
+
+.check_down:
+	ld hl,button_down_is_down_flag
+	ld a, [hl]
+	cp 1
+	jr nz, .check_down_done
+	; button was just pressed, move player
+	ld hl,PlayerThrustY
+	ld [hl],PLAYER_THRUST
+
+.check_down_done:
+
+
+	; *** Adjust velocity based on thrust ***
+
+	; if( thrust.x != 0 ) PlayerVelocityX = Thrust.X
+	ld hl,PlayerThrustX
+	ld a,[hl]				; A = Thrust.X
+	cp 0				    ; if (thrust.x == 0) goto .skip_velocity_x_update
+	jr z,.skip_velocity_x_update
+	ld hl,PlayerVelocityX	; hl = address of Velocity.X
+	ld [hl],a			    ; PlayerVelocityX = Thrust.X	
+.skip_velocity_x_update
+
+	; if( thrust.y != 0 ) PlayerVelocityY = Thrust.Y
+	ld hl,PlayerThrustY
+	ld a,[hl]				; A = Thrust.Y
+	cp 0				    ; if (thrust.y == 0) goto .skip_velocity_y_update
+	jr z,.skip_velocity_y_update
+	ld hl,PlayerVelocityY	; hl = address of Velocity.Y
+	ld [hl],a			    ; PlayerVelocityY = Thrust.Y	
+.skip_velocity_y_update
+
+	; *** Update player position based on velocity ***
+
+	; PlayerX += PlayerVelocityX
+	ld hl,PlayerVelocityX
+	ld a,[hl]				; A = PlayerVelocityX
+	ld hl,PlayerX
+	ld b, [hl]				; B = PlayerX
+	add a, b				; A = PlayerX + PlayerVelocityX
+	ld [hl], a				; PlayerX = A
+
+	; PlayerY += PlayerVelocityY
+	ld hl,PlayerVelocityY
+	ld a,[hl]				; A = PlayerVelocityY
+	ld hl,PlayerY
+	ld b, [hl]				; B = PlayerY
+	add a, b				; A = PlayerY + PlayerVelocityY
+	ld [hl], a				; PlayerY = A
+
+	; *** Bounds checking ***
+
+	; if PlayerX < 8 then PlayerX = 8
+	ld hl,PlayerX
+	ld a,[hl]
+	cp 8
+	jr nc, .skip_playerx_min_bound
+	ld b,8
+	ld [hl],b
+.skip_playerx_min_bound:
+
+	; if PlayerX > 160 then PlayerX = 160
+	cp 160
+	jr c, .skip_playerx_max_bound
+	ld b,160
+	ld [hl],b
+.skip_playerx_max_bound:
+
+	; if PlayerY < 16 then PlayerY = 16
+	ld hl,PlayerY
+	ld a,[hl]
+	cp 16
+	jr nc, .skip_playery_min_bound
+	ld b,16
+	ld [hl],b
+.skip_playery_min_bound:
+
+	; if PlayerY > 143 then PlayerY = 143
+	cp 143
+	jr c, .skip_playery_max_bound
+	ld b,143
+	ld [hl],b
+.skip_playery_max_bound:
+
+	; *** Decelerate velocity ***
+
+	; Slow down velocity (simple friction model)
+	ld hl, PlayerVelocityX
+	ld a, [hl]
+	cp 0
+	jr z, .skip_decelerate_x
+
+	
+	; PlayerVelocityX-- to simulate slow deceleration
+	ld hl,PlayerVelocityX
+	ld [hl],0
+
+	ld hl,PlayerVelocityY
+	ld [hl],0
+
+	; *** Update sprite position ***
+
+	ld hl,PlayerX
+	ld a,[hl]        ; A = PlayerX
+	ld hl,SprPlayerX
+	ld [hl], a		; update sprite X position
+
+	ld hl,PlayerY
+	ld a,[hl]        ; A = PlayerY
+	ld hl,SprPlayerY
+	ld [hl], a		; update sprite Y position
+	
+
+	ret
 	
 ; --------------------------------
 ; Button was pressed event handler
