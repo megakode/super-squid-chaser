@@ -348,20 +348,18 @@ UpdatePlayerMovement:
 .skip_playery_max_bound:
 
 	; *** Decelerate velocity ***
-
-	; Slow down velocity (simple friction model)
-	; ld hl, PlayerVelocityX
-	; ld a, [hl]
-	; cp 0
-	; jr z, .skip_decelerate_x
-
 	
-	; PlayerVelocityX-- to simulate slow deceleration
-	ld hl,PlayerVelocityX
-	ld [hl],0
+	ld hl, PlayerVelocityX
+	ld a, [hl]
+	ld b,PLAYER_DEACCELERATION
+	call DecayTowardsZero
+	ld [hl], a
 
 	ld hl,PlayerVelocityY
-	ld [hl],0
+	ld a, [hl]
+	ld b,PLAYER_DEACCELERATION
+	call DecayTowardsZero
+	ld [hl], a
 
 	; *** Update sprite position ***
 
@@ -374,7 +372,6 @@ UpdatePlayerMovement:
 	ld a,[hl]        ; A = PlayerY
 	ld hl,SprPlayerY
 	ld [hl], a		; update sprite Y position
-	
 
 	ret
 	
