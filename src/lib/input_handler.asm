@@ -400,7 +400,7 @@ InputHandlerUpdate:
     ld a,[rJOYP]
     ld a,[rJOYP]
     cpl ; invert bits (so pressed = 1)
-    and 0xF0 ; mask to only A/B/START/SELECT bits
+    and 0x0f ; mask to only A/B/START/SELECT bits
     ld b,a ; store input in B
 
 ; ----------------------------------
