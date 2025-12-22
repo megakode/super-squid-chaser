@@ -19,6 +19,22 @@ SECTION "Header", ROM0[$100]
 
 
 SECTION "OAM Data", WRAM0, ALIGN[8] ; align to 256 bytes
+
+; OAM Entry bytes:
+; Byte 0: Y Position
+; Byte 1: X Position
+; Byte 2: Tile Number
+; Byte 3: Attributes
+
+; Sprite Attribute Byte Bits:
+; 7: Render priority
+; 6: Y flip
+; 5: X flip
+; 4: Palette number
+; 3: VRAM bank            (GB Color only)
+; 2: Palette number bit 3 (GB Color only)
+; 1: Palette number bit 2 (GB Color only)
+; 0: Palette number bit 1 (GB Color only)
 	
 	EXPORT ShadowOAMData	
 	ShadowOAMData:
@@ -26,7 +42,8 @@ SECTION "OAM Data", WRAM0, ALIGN[8] ; align to 256 bytes
 		SprPlayerX:   db
 		SprPlayerTileNum:   db
 		SprPlayerAttributes:db
-		ds 4 * 39 ; reserve space for 40 sprites (4 bytes each)
+		SprShots:  ds 4 * 5 ; reserve space for 5 shots (4 bytes each)
+		ds 4 * 34 ; reserve space for 40 sprites (4 bytes each)
 	ShadowOAMDataEnd:	
 
 SECTION "Game variables", WRAM0
@@ -188,6 +205,8 @@ EntryPoint:
 	call SpriteAnimationsInit
 	call InputHandlerInit
 	
+	ld hl,SprShots
+	call ShotsInit
 	; ld de, SprDef_Alien1
 	; ld a,0 ; sprite 0
 	; ld b, AnimationStatePlayOnce
@@ -198,6 +217,7 @@ EntryPoint:
 .game_loop:
 
 	call SpriteAnimationsUpdate
+	call UpdateShots
 
 	; update game logic
 
@@ -207,6 +227,7 @@ EntryPoint:
 	
 	call WaitVBlank
 
+	call DrawShots
 	call StatusBarUpdate
 
 	; call the DMA subroutine we copied to HRAM, which then copies the shadow OAM data to video memory
@@ -383,8 +404,20 @@ UpdatePlayerMovement:
 export ButtonWasPressed
 ButtonWasPressed:
 
+	cp BUTTON_A
+	jr z,.a_was_pressed
 	ret
+
+.a_was_pressed:
+	
+	; Fire a shot
+	ld hl,PlayerX
+	ld d,[hl]
+	ld hl,PlayerY
+	ld e,[hl]
+	call AddShot
 		
+	ret
 ; --------------------------------
 ; Button was released event handler
 ; --------------------------------

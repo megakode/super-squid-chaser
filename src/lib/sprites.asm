@@ -465,25 +465,6 @@ SpritesClear:
 
 	ret
 
-    ; -----------------------------
-; Sprite Macros
-; ---------------------------
-; OAM Entry bytes:
-; Byte 0: Y Position
-; Byte 1: X Position
-; Byte 2: Tile Number
-; Byte 3: Attributes
-
-; Sprite Attribute Byte Bits:
-; 7: Render priority
-; 6: Y flip
-; 5: X flip
-; 4: Palette number
-; 3: VRAM bank            (GB Color only)
-; 2: Palette number bit 3 (GB Color only)
-; 1: Palette number bit 2 (GB Color only)
-; 0: Palette number bit 1 (GB Color only)
-
 ; -----------------------------
 ; Hide Sprite 
 ;
