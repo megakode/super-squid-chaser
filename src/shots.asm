@@ -1,34 +1,34 @@
 INCLUDE "hardware.inc"
 
-SECTION "Enemy variable", WRAM0
+SECTION "Shots variable", WRAM0
 
-def MAX_ENEMIES = 20
-def ENEMIES_SPEED = 2
+def MAX_PLAYER_SHOTS = 5
+def PLAYER_SHOT_SPEED = 2
 
-EnemyCount:  ds 1                 ; Number of active player shots
-EnemyX:      ds MAX_ENEMIES  ; X positions of player shots
-EnemyY:      ds MAX_ENEMIES  ; Y positions of player shots
-EnemyIsActive: ds MAX_ENEMIES  ; Active flags for player shots
+PlayerShotsCount:  ds 1                 ; Number of active player shots
+PlayerShotsX:      ds MAX_PLAYER_SHOTS  ; X positions of player shots
+PlayerShotsY:      ds MAX_PLAYER_SHOTS  ; Y positions of player shots
+PlayerShotsActive: ds MAX_PLAYER_SHOTS  ; Active flags for player shots
 
-export EnemySpritesPtr
-EnemySpritesPtr: ds 2 ; Pointer to the sprites used in shadow OAM
+export PlayerShotsSpritesPtr
+PlayerShotsSpritesPtr: ds 2 ; Pointer to the sprites used in shadow OAM
 
-SECTION "Enemy routines", ROM0
+SECTION "Shots routines", ROM0
 
-export EnemiesInit
-EnemiesInit:
+export ShotsInit
+ShotsInit:
     ; Initialize player shots data
     ld d, h
     ld e, l
-    ld hl,EnemySpritesPtr
+    ld hl,PlayerShotsSpritesPtr
     ld [hl],e
     inc hl
     ld [hl],d
 
     ; Set shot sprite indexes
-    ld a,[EnemySpritesPtr]
+    ld a,[PlayerShotsSpritesPtr]
     ld l,a
-    ld a,[EnemySpritesPtr+1]
+    ld a,[PlayerShotsSpritesPtr+1]
     ld h,a
     ld c,0
 .init_loop:
@@ -37,66 +37,66 @@ EnemiesInit:
     inc hl
     ld [hl], a ; Set X
     inc hl
-    ld [hl], 0x08 ; Set Tile number for shot sprite
+    ld [hl], 0x02 ; Set Tile number for shot sprite
     inc hl
     ld [hl], 0 ; Attributes
     inc hl
     inc c
     ld a,c
-    cp MAX_ENEMIES
+    cp MAX_PLAYER_SHOTS
     jr c, .init_loop
 
-    call ResetEnemies
+    call ResetShots
     ret
 
 
 ; ==========================================
-; Reset Enemies
+; Reset Shots
 ; ==========================================
 
-export ResetEnemies
-ResetEnemies:
+export ResetShots
+ResetShots:
 
     ; Initialize all player shots to inactive
-    ld hl, EnemyIsActive
-    ld c, MAX_ENEMIES
+    ld hl, PlayerShotsActive
+    ld c, MAX_PLAYER_SHOTS
 .reset_loop:
     ld [hl], 0          ; Set active flag to 0 (inactive)
     inc hl
     dec c
     jr nz, .reset_loop
 
-    ld hl, EnemyCount
+    ld hl, PlayerShotsCount
     ld [hl], 0  ; Set shot count to 0
 
     ret
 
 ; ==========================================
-; AddEnemy
+; AddShot
 ;
-; Adds a new enemy if there is an available slot
+; Adds a new player shot if there is an available slot
 ;
 ; Inputs:
 ;   D - X position of the shot
 ;   E - Y position of the shot
 ;
 ; Outputs:
-;   A - 1 if an enemy is added successfully, 0 if no slot available
+;   A - 1 if shot added successfully, 0 if no slot available
 ; ==========================================
 
-export AddEnemy
-AddEnemy:
+export AddShot
+AddShot:
 
     push bc
     push hl
 
-    ld hl,EnemyCount
+    ld hl,PlayerShotsCount
     ld a,[hl]
-    cp MAX_ENEMIES
+    cp MAX_PLAYER_SHOTS
     jr z, .no_slot_available
 
-    ; Find an inactive enemy slot
-    ld hl, EnemyIsActive
+    ; Find an inactive shot slot
+    ld hl, PlayerShotsActive
     ld c, 0
 .find_slot:
     ld a, [hl]
@@ -105,7 +105,7 @@ AddEnemy:
     inc hl
     inc c
     ld a,c
-    cp MAX_ENEMIES
+    cp MAX_PLAYER_SHOTS
     jr c, .find_slot
 
     ; No available slot, return 0
@@ -117,18 +117,18 @@ AddEnemy:
  
     ; C now contains the index of the available slot
     
-    ld [hl], 1              ; Mark enemy as active
-    ld hl, EnemyX
+    ld [hl], 1              ; Mark shot as active
+    ld hl, PlayerShotsX
     ld b,0
     add hl, bc
     ld [hl], d              ; Set X position
-    ld hl, EnemyY
+    ld hl, PlayerShotsY
     add hl, bc
     ld [hl], e              ; Set Y position
 
-    ld hl,EnemyCount
-    inc [hl]               ; Increment enemy count
-    ld a,1                 ; Indicate enemy added successfully
+    ld hl,PlayerShotsCount
+    inc [hl]               ; Increment shot count
+    ld a,1                 ; Indicate shot added successfully
 
 .done
     pop hl
@@ -136,67 +136,67 @@ AddEnemy:
     ret
 
 ; ==========================================
-; UpdateEnemies
+; UpdateShots
 ; ==========================================
 
-export UpdateEnemies
-UpdateEnemies:
+export UpdateShots
+UpdateShots:
 
     push hl
     push bc
     push de
 
-    ld hl, EnemyCount
+    ld hl, PlayerShotsCount
     ld a, [hl]
     cp 0
-    jr z, .no_enemies ; If no active enemies, skip update
+    jr z, .no_shots ; If no active shots, skip update
 
     ld bc,0
 
 .update_loop
 
-    ld hl,EnemyIsActive
+    ld hl,PlayerShotsActive
     add hl, bc
     ld a, [hl]         ; Check if current shot is active..
     cp 1
-    jr nz, .next_enemy ; If not, skip
+    jr nz, .next_shot ; If not, skip
 
-    ; ld hl,EnemyX
+    ; ld hl,PlayerShotsX
     ; add hl, bc
     ; ld a, [hl]
-    ; sub ENEMIES_SPEED
+    ; sub PLAYER_SHOT_SPEED
     ; ld [hl], a ; Update X position
 
-    ld hl,EnemyY
+    ld hl,PlayerShotsY
     add hl, bc
     ld a, [hl]
-    cp 8                ; Check if enemy is off-screen
-    jr nc, .move_enemy
+    cp 8                ; Check if shot is off-screen
+    jr nc, .move_shot
     
-.deactivate_enemy:
+.deactivate_shot:
 
-    ld hl,EnemyIsActive
+    ld hl,PlayerShotsActive
     add hl, bc
-    ld [hl], 0 ; Mark enemy as inactive
-    ld hl,EnemyCount
-    dec [hl] ; Decrement enemy count
-    jp .next_enemy
+    ld [hl], 0 ; Mark shot as inactive
+    ld hl,PlayerShotsCount
+    dec [hl] ; Decrement shot count
+    jp .next_shot
     
-.move_enemy
+.move_shot
 
-    sub ENEMIES_SPEED
+    sub PLAYER_SHOT_SPEED
     ld [hl], a ; Update X position
         
-.next_enemy
+.next_shot
     
     inc c
-    ld hl,EnemyIsActive
+    ld hl,PlayerShotsActive
     add hl, bc
     ld a,c
-    cp MAX_ENEMIES
+    cp MAX_PLAYER_SHOTS
     jr c, .update_loop
 
-.no_enemies
+.no_shots
 
     pop de
     pop bc
@@ -208,46 +208,43 @@ UpdateEnemies:
 ; DrawShots
 ; 
 ; ==========================================
-export DrawEnemies
-DrawEnemies:
+export DrawShots
+DrawShots:
 
-    ld bc,0 ; number of enemy sprites processed
+    ld bc,0 ; number of shot sprites processed
 
-    .next_enemy_draw:
+    .next_shot_draw:
     
-    ; find active enemies
-    ld hl,EnemyIsActive
+    ; find active shots
+    ld hl,PlayerShotsActive
     add hl, bc
     ld a,[hl]
     cp 1
-    jr z,.draw_enemy
+    jr z,.draw_shot
 
-.hide_enemy:
+.hide_shot:
 
-    ; ld hl,EnemyY
-    ; add hl, bc      
-    ; ld [hl], 0 ; off-screen Y position
     ld d,0
     ld e,0
-    jp .update_enemy_sprite
+    jp .update_shot_sprite
 
-.draw_enemy:
-    ; draw enemy sprite
-    ld hl,EnemyX
+.draw_shot:
+    ; draw shot sprite
+    ld hl,PlayerShotsX
     add hl, bc
     ld d,[hl] ; X position
-    ld hl,EnemyY
+    ld hl,PlayerShotsY
     add hl, bc      
     ld e,[hl] ; Y position
 
-.update_enemy_sprite:
+.update_shot_sprite:
 
     push bc ; save index counter
 
     ; Get shadow OAM pointer
-    ld a,[EnemySpritesPtr]
+    ld a,[PlayerShotsSpritesPtr]
     ld l,a
-    ld a,[EnemySpritesPtr+1]
+    ld a,[PlayerShotsSpritesPtr+1]
     ld h,a
     ; calculate OAM entry offset
     sla c
@@ -265,8 +262,8 @@ DrawEnemies:
 
     inc c
     ld a, c
-    cp MAX_ENEMIES
-    jr c, .next_enemy_draw
+    cp MAX_PLAYER_SHOTS
+    jr c, .next_shot_draw
     
     ret
 

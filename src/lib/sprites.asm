@@ -42,6 +42,7 @@ EXPORT SpriteAnimationsInit
 EXPORT SpriteAnimationAdd
 EXPORT SpriteAnimationsUpdate
 EXPORT SpriteAnimationFindByState
+EXPORT SpriteAnimationFindBySpriteIndex
 
 ; -----------------------------
 ; Initialize Sprite Animations
@@ -150,14 +151,9 @@ SpriteAnimationFindByState:
 
 	ret
 
-
-SpriteAnimationSet:
-
-
-
-
-; -----------------------------
+; ======================================================================
 ; Add Sprite Animation
+; ======================================================================
 ; Add a sprite animation to the SpriteAnimations array
 ;
 ; Sprite definitions
@@ -174,7 +170,7 @@ SpriteAnimationSet:
 ; Returns:
 ; hl = pointer to the sprite animation entry created
 
-; -----------------------------
+; ======================================================================
 SpriteAnimationAdd:
 
 	push bc

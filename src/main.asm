@@ -43,8 +43,11 @@ SECTION "OAM Data", WRAM0, ALIGN[8] ; align to 256 bytes
 		SprPlayerTileNum:   db
 		SprPlayerAttributes:db
 		SprShots:  ds 4 * 5 ; reserve space for 5 shots (4 bytes each)
-		ds 4 * 34 ; reserve space for 40 sprites (4 bytes each)
+		SprEnemies:  ds 4 * 20 ; reserve space for 20 enemies (4 bytes each)
+		ds 4 * 14 ; reserve space for 40 sprites (4 bytes each)
 	ShadowOAMDataEnd:	
+
+def SprEnemiesIndex = (SprEnemies - ShadowOAMData) / 4
 
 SECTION "Game variables", WRAM0
 
@@ -207,10 +210,19 @@ EntryPoint:
 	
 	ld hl,SprShots
 	call ShotsInit
-	; ld de, SprDef_Alien1
-	; ld a,0 ; sprite 0
-	; ld b, AnimationStatePlayOnce
-	; call SpriteAnimationAdd
+
+	ld hl,SprEnemies
+	call EnemiesInit
+	; add an enemy for testing
+	ld d, 120 ; X position
+	ld e, 60  ; Y position
+	call AddEnemy
+
+
+	ld de, SprDef_Alien1
+	ld a,SprEnemiesIndex
+	ld b, AnimationStatePlayLooped
+	call SpriteAnimationAdd
 
 
 
@@ -224,10 +236,12 @@ EntryPoint:
 	call InputHandlerUpdate
 
 	call UpdatePlayerMovement
+	; call UpdateEnemies
 	
 	call WaitVBlank
 
 	call DrawShots
+	call DrawEnemies
 	call StatusBarUpdate
 
 	; call the DMA subroutine we copied to HRAM, which then copies the shadow OAM data to video memory
