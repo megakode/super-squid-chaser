@@ -69,6 +69,11 @@ SECTION "Entry point", ROM0
 	Tiles:    
 		INCBIN "assets/bg_stars.2bpp"
 		INCBIN "assets/statusbar.2bpp"
+	RockTiles:
+		INCBIN "assets/rocks.2bpp"   ; Rocks in original state
+		INCBIN "assets/rocks_2.2bpp" ; damaged 1/3
+		INCBIN "assets/rocks_3.2bpp" ; damaged 2/3
+		INCBIN "assets/rocks_4.2bpp" ; damaged 3/3
 	TilesEnd:
 
 	Sprites:	
@@ -92,6 +97,9 @@ println "Alien 2 sprite offset in tiles: 0x{x:AlienOffset2}"
 
 def AlienOffset3 = (SpriteDataAlien3 - Sprites) / 16
 println "Alien 2 sprite offset in tiles: 0x{x:AlienOffset3}"
+
+def RockTilesOffset = (RockTiles - Tiles) / 16
+println "Rock tiles offset in tiles: 0x{x:RockTilesOffset}"
 ; ----------------------------------------------
 ; Sprite Definitions
 ; ----------------------------------------------
@@ -119,6 +127,20 @@ db AlienOffset3, 5, 10, 0  ; Alien 3
 SprDef_Exhaust:
 db 1, 5, 10, 0
 	
+
+RockData: 
+db 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+db 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+db 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1
+db 0,0,0,1,0,1,0,1,1,0,0,1,0,1,0,0,1,0,1,0
+db 0,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+db 0,0,0,1,0,0,0,0,0,1,0,0,0,1,1,0,1,0,0,0
+db 0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0
+db 0,1,0,0,1,0,0,0,0,1,0,0,0,0,1,0,1,0,1,0
+db 0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0
+db 0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0
+RockDataEnd:
+
 
 EntryPoint:
 	
@@ -165,6 +187,7 @@ EntryPoint:
 
 	call StatusBarUpdate
 
+	call PlaceRocksOnMap
 	
 	; Setup LCD screen
 	
@@ -225,7 +248,6 @@ EntryPoint:
 	call SpriteAnimationAdd
 
 
-
 .game_loop:
 
 	call SpriteAnimationsUpdate
@@ -250,6 +272,68 @@ EntryPoint:
 
 	jr  .game_loop
 
+
+; --------------------------------
+; Place rocks on map
+; --------------------------------
+; Places rock tiles on the background map at random positions
+PlaceRocksOnMap:
+
+	ld hl,RockData
+	ld c,0
+	ld de, $9800        ; start of BG map
+
+.next_tile:
+
+	ld a,[hl]
+	cp 0
+	jr z,.skip_place_rock
+
+	; place rock tile
+	push hl
+	ld h,d
+	ld l,e
+
+	; add PRNG to rock tile variation
+	call GetPseudoRandomByte
+	and `11             ; limit to 0-31 tile indices
+	add RockTilesOffset 
+	ld [hl], a
+	pop hl
+
+.skip_place_rock:
+
+	inc hl
+	inc de
+	inc c
+
+	ld a,c
+	cp 20
+	jp nz, .dont_increase_row
+
+	push hl
+	; move to next row by adding 12 to DE
+	ld h,d    ; DE -> HL
+	ld l,e
+	ld de,12 
+	add hl,de ; HL += 12
+	ld d,h    ; HL -> DE
+	ld e,l
+	ld c,0
+
+	pop hl
+
+.dont_increase_row:
+
+	ld   a, h
+    cp   HIGH(RockDataEnd)
+    jr   nz, .next_tile
+
+    ld   a, l
+    cp   LOW(RockDataEnd)
+    jr   nz, .next_tile
+
+	ret
 
 ; --------------------------------
 ; Update player movement
