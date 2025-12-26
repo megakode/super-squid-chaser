@@ -498,7 +498,7 @@ InputHandlerUpdate:
 	ld hl,button_b_was_pressed_flag
 	ld [hl], a ; set pressed flag
 	; call any press event handlers here
-	ld a,BUTTON_DOWN
+	ld a,BUTTON_B
 	call ButtonWasPressed 
 	call ButtonIsDown
 	jp .button_b_check_done
@@ -611,7 +611,7 @@ InputHandlerUpdate:
 	ld hl,button_select_was_pressed_flag
 	ld [hl], a ; set pressed flag
 	; call any press event handlers here
-	ld a,BUTTON_START
+	ld a,BUTTON_SELECT
 	call ButtonWasPressed 
 	call ButtonIsDown
 	jp .button_select_check_done
