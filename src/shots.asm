@@ -10,8 +10,14 @@ PlayerShotsX:      ds MAX_PLAYER_SHOTS  ; X positions of player shots
 PlayerShotsY:      ds MAX_PLAYER_SHOTS  ; Y positions of player shots
 PlayerShotsActive: ds MAX_PLAYER_SHOTS  ; Active flags for player shots
 
-export PlayerShotsSpritesPtr
 PlayerShotsSpritesPtr: ds 2 ; Pointer to the sprites used in shadow OAM
+
+export MAX_PLAYER_SHOTS
+export PlayerShotsCount
+export PlayerShotsX
+export PlayerShotsY
+export PlayerShotsActive
+export PlayerShotsSpritesPtr
 
 SECTION "Shots routines", ROM0
 

@@ -64,16 +64,23 @@ PlayerThrustY: db
 PlayerVelocityX: db
 PlayerVelocityY: db
 
+; Shots / Rocks collision tracking
+
+CurrentShotTileX: db
+CurrentShotTileY: db
+; CurrentShotIndex: db
+
 SECTION "Entry point", ROM0
 	
 	Tiles:    
 		INCBIN "assets/bg_stars.2bpp"
 		INCBIN "assets/statusbar.2bpp"
 	RockTiles:
-		INCBIN "assets/rocks.2bpp"   ; Rocks in original state
+		INCBIN "assets/rocks.2bpp"   ; Rocks in complete state
 		INCBIN "assets/rocks_2.2bpp" ; damaged 1/3
 		INCBIN "assets/rocks_3.2bpp" ; damaged 2/3
 		INCBIN "assets/rocks_4.2bpp" ; damaged 3/3
+	RockTilesEnd:
 	TilesEnd:
 
 	Sprites:	
@@ -100,6 +107,8 @@ println "Alien 2 sprite offset in tiles: 0x{x:AlienOffset3}"
 
 def RockTilesOffset = (RockTiles - Tiles) / 16
 println "Rock tiles offset in tiles: 0x{x:RockTilesOffset}"
+def RockTilesCount = (RockTilesEnd - RockTiles) / 16
+println "Rock tiles count: {d:RockTilesCount} tiles"
 ; ----------------------------------------------
 ; Sprite Definitions
 ; ----------------------------------------------
@@ -266,12 +275,107 @@ EntryPoint:
 	call DrawEnemies
 	call StatusBarUpdate
 
+	; TODO: optimize by calculating a list of "explosions" where colision occurred and only updating those rocks in the BG map during VBlank
+	call ColisionDetectionShotsRocks 
+
 	; call the DMA subroutine we copied to HRAM, which then copies the shadow OAM data to video memory
 	ld  a, HIGH(ShadowOAMData)
 	call ExecuteDMACopy
 
 	jr  .game_loop
 
+; ---------------------------------
+; Collision detection between shots and rocks
+; ---------------------------------
+
+ColisionDetectionShotsRocks:
+
+	ld bc,0
+	ld a,0
+
+.next_shot:
+
+	ld hl,PlayerShotsActive
+	add hl, bc
+	ld a,[hl]
+	cp 0
+	jr z, .skip_shot ; if shot not active, skip
+
+
+	; get shot X/Y position and convert to tile coordinates
+
+	ld hl, PlayerShotsX
+	add hl, bc
+	ld a, [hl]               ; D = shot X position in pixels
+	sub 4 ; adjust for shot hotspot
+	srl a					 ; convert to tile coordinate (divide by 8)
+	srl a
+	srl a                    ; D = shot X position in tiles
+	ld [CurrentShotTileX],a
+
+	ld hl,PlayerShotsY
+	add hl, bc
+	ld a, [hl]               ; E = shot Y position in pixels
+	sub 16 ; adjust for shot hotspot
+	srl a					 ; convert to tile coordinate (divide by 8)
+	srl a
+	srl a                    ; E = shot Y position in tiles
+	ld [CurrentShotTileY], a
+
+
+	; calculate address in BG map
+
+	ld h,0
+	ld l,a ; hl = tile Y
+	add hl,hl ; hl = tile Y * 2
+	add hl,hl ; hl = tile Y * 4
+	add hl,hl ; hl = tile Y * 8
+	add hl,hl ; hl = tile Y * 16
+	add hl,hl ; hl = tile Y * 32
+	ld d,h
+	ld e,l
+	ld hl, $9800
+	add hl,de ; hl = $9800 + (tile Y * 32)
+	ld a, [CurrentShotTileX]
+	ld d,0
+	ld e,a
+	add hl,de ; hl = $9800 + (tile Y * 32) + tile X
+	
+	; is there a rock here? ( Tile number between RockTilesOffset and RockTilesOffset + RockTilesCount )
+
+	ld a,[hl] 			 ; A = tile number at shot position
+	cp RockTilesOffset
+	jr c, .skip_shot       ; if tile number < RockTilesOffset, no rock present
+	cp RockTilesOffset + RockTilesCount
+	jr nc, .skip_shot      ; if tile number >= RockTilesOffset + RockTilesCount, no rock present
+
+	add 4 ; advance to next rock damage state tile
+	ld [hl],a
+
+	; remove shot (set active flag to 0)
+	ld hl, PlayerShotsActive
+	add hl, bc
+	ld a,0
+	ld [hl], a
+
+	ld hl,PlayerShotsCount
+	dec [hl]
+
+	; TODO: update shadow OAM to hide shot sprite
+
+	
+.skip_shot:
+
+	; increment to next shot
+
+	; are we there yet?
+	inc c
+	ld a, c
+	cp MAX_PLAYER_SHOTS
+	jr c, .next_shot
+
+
+	ret
 
 ; --------------------------------
 ; Place rocks on map
@@ -285,9 +389,16 @@ PlaceRocksOnMap:
 
 .next_tile:
 
-	ld a,[hl]
+	; Load rock data from byte array
+	; ld a,[hl]
+	; cp 0
+	; jr z,.skip_place_rock
+
+	; Decide rock data randomly
+	call GetPseudoRandomByte
+	and `11
 	cp 0
-	jr z,.skip_place_rock
+	jr nz,.skip_place_rock
 
 	; place rock tile
 	push hl
