@@ -53,8 +53,6 @@ SECTION "Game variables", WRAM0
 
 ; Misc
 
-RandomSeed: db
-
 ; Player 
 
 PlayerX: db
@@ -68,7 +66,8 @@ PlayerVelocityY: db
 
 CurrentShotTileX: db
 CurrentShotTileY: db
-; CurrentShotIndex: db
+
+ScrollTrigger: db
 
 SECTION "Entry point", ROM0
 	
@@ -105,6 +104,7 @@ println "Alien 2 sprite offset in tiles: 0x{x:AlienOffset2}"
 def AlienOffset3 = (SpriteDataAlien3 - Sprites) / 16
 println "Alien 2 sprite offset in tiles: 0x{x:AlienOffset3}"
 
+export RockTilesOffset
 def RockTilesOffset = (RockTiles - Tiles) / 16
 println "Rock tiles offset in tiles: 0x{x:RockTilesOffset}"
 def RockTilesCount = (RockTilesEnd - RockTiles) / 16
@@ -177,12 +177,15 @@ EntryPoint:
 	ld bc, SpritesEnd - Sprites
 	call Memcopy
 
-	ld a,0xab; initial PRNG seed value
-	ld [RandomSeed], a 
-
+	call InitRandomSeed
 	
 	call ClearScreen
-	call GenerateBackgroundPattern
+	call GenerateBackgroundMap
+	call GenerateRockMap
+	
+	ld a,31 ; generate row 31 (bottom row)
+	call GenerateRockRow
+	
 
 	; Show window status bar
 	call ShowStatusBar
@@ -194,10 +197,8 @@ EntryPoint:
 	ld hl,StatusBarGemValue
 	ld [hl], DEFAULT_GEM_VALUE ; initial gem value
 
-	call StatusBarUpdate
+	;call StatusBarUpdate
 
-	call PlaceRocksOnMap
-	
 	; Setup LCD screen
 	
 	ld a, LCDCF_ON | LCDCF_BGON | LCDCF_OBJON | LCDCF_WINON | LCDCF_WIN9C00 | LCDCF_BG9800 | LCDCF_PRIOFF
@@ -233,6 +234,9 @@ EntryPoint:
 	ld [SprPlayerTileNum], a
 	ld a,`00000000 ; No attributes
 	ld [SprPlayerAttributes], a
+
+	ld a,0
+	ld [ScrollTrigger], a
 	
 	; move DMA subroutine to HRAM
 	call SetupDMACopy
@@ -268,12 +272,19 @@ EntryPoint:
 
 	call UpdatePlayerMovement
 	; call UpdateEnemies
+	call DrawEnemies ; Drawn to shadow OAM, so can be done when VRAM is locked
 	
 	call WaitVBlank
 
+	ld e,1 ; offset in status bar
+	ld a,1
+	call StatusBarSetNumber
+	
 	call DrawShots
-	call DrawEnemies
-	call StatusBarUpdate
+	
+	;call StatusBarUpdate
+	
+	call UpdateScrolling
 
 	; TODO: optimize by calculating a list of "explosions" where colision occurred and only updating those rocks in the BG map during VBlank
 	call ColisionDetectionShotsRocks 
@@ -281,8 +292,55 @@ EntryPoint:
 	; call the DMA subroutine we copied to HRAM, which then copies the shadow OAM data to video memory
 	ld  a, HIGH(ShadowOAMData)
 	call ExecuteDMACopy
+	;call ExecuteDMACopy ; TEST TO SLOW THINGS DOWN - REMOVE LATER	
+
+	; This is just for testing - remove later
+	; Try to show 0 in the status bar. 
+	; If 1 is visible, it means we have exceeded VBlank time and VRAM is locked.
+	ld e,1 ; offset in status bar
+	ld a,0
+	call StatusBarSetNumber
 
 	jr  .game_loop
+
+; ===============================================================
+; Update Scrolling
+; ===============================================================
+UpdateScrolling:
+
+	ld a,[ScrollTrigger]
+	inc a
+	ld [ScrollTrigger], a
+	cp 8 ; Scroll every 1 frame
+	ret c
+
+	; Do scrolling...
+
+	; reset scroll trigger
+	ld a, 0
+	ld [ScrollTrigger], a
+
+	; scroll BG up by 1 pixel
+	ld a, [rSCY]
+	dec a
+	ld [rSCY], a
+
+	; generate new line of rocks if needed
+	ld a, [rSCY] ; A = SCY
+	sub 8
+	srl a
+	srl a
+	srl a		 ; divide by 8 to get tile row of upper visible area
+	; dec a        ; take row above visible area
+	ld b,a
+
+	ld a, [rSCY]
+	and `00000111
+	cp `00000000
+	ld a,b
+	call z,GenerateRockRow
+
+	ret
 
 ; ---------------------------------
 ; Collision detection between shots and rocks
@@ -301,13 +359,12 @@ ColisionDetectionShotsRocks:
 	cp 0
 	jr z, .skip_shot ; if shot not active, skip
 
-
 	; get shot X/Y position and convert to tile coordinates
 
 	ld hl, PlayerShotsX
 	add hl, bc
 	ld a, [hl]               ; D = shot X position in pixels
-	sub 4 ; adjust for shot hotspot
+	sub 4                    ; adjust for shot hotspot
 	srl a					 ; convert to tile coordinate (divide by 8)
 	srl a
 	srl a                    ; D = shot X position in tiles
@@ -316,17 +373,22 @@ ColisionDetectionShotsRocks:
 	ld hl,PlayerShotsY
 	add hl, bc
 	ld a, [hl]               ; E = shot Y position in pixels
-	sub 16 ; adjust for shot hotspot
+	sub 16                   ; adjust for shot hotspot
+
+	; Adjust for scrolling
+	ld d,a
+	ld a, [rSCY]
+	add a, d                 ; E = shot Y position + scroll Y
+
 	srl a					 ; convert to tile coordinate (divide by 8)
 	srl a
 	srl a                    ; E = shot Y position in tiles
 	ld [CurrentShotTileY], a
 
-
 	; calculate address in BG map
 
 	ld h,0
-	ld l,a ; hl = tile Y
+	ld l,a    ; hl = tile Y
 	add hl,hl ; hl = tile Y * 2
 	add hl,hl ; hl = tile Y * 4
 	add hl,hl ; hl = tile Y * 8
@@ -339,15 +401,18 @@ ColisionDetectionShotsRocks:
 	ld a, [CurrentShotTileX]
 	ld d,0
 	ld e,a
-	add hl,de ; hl = $9800 + (tile Y * 32) + tile X
+	add hl,de               ; hl = $9800 + (tile Y * 32) + tile X
 	
 	; is there a rock here? ( Tile number between RockTilesOffset and RockTilesOffset + RockTilesCount )
 
-	ld a,[hl] 			 ; A = tile number at shot position
+	ld a,[hl] 			   ; A = tile number at shot position
 	cp RockTilesOffset
 	jr c, .skip_shot       ; if tile number < RockTilesOffset, no rock present
 	cp RockTilesOffset + RockTilesCount
 	jr nc, .skip_shot      ; if tile number >= RockTilesOffset + RockTilesCount, no rock present
+
+	; Rock hit! 
+.rock_was_hit:
 
 	add 4 ; advance to next rock damage state tile
 	ld [hl],a
@@ -360,15 +425,10 @@ ColisionDetectionShotsRocks:
 
 	ld hl,PlayerShotsCount
 	dec [hl]
-
-	; TODO: update shadow OAM to hide shot sprite
-
 	
 .skip_shot:
 
-	; increment to next shot
-
-	; are we there yet?
+	; increment counter and check if we have processed all shots
 	inc c
 	ld a, c
 	cp MAX_PLAYER_SHOTS
@@ -377,74 +437,7 @@ ColisionDetectionShotsRocks:
 
 	ret
 
-; --------------------------------
-; Place rocks on map
-; --------------------------------
-; Places rock tiles on the background map at random positions
-PlaceRocksOnMap:
 
-	ld hl,RockData
-	ld c,0
-	ld de, $9800        ; start of BG map
-
-.next_tile:
-
-	; Load rock data from byte array
-	; ld a,[hl]
-	; cp 0
-	; jr z,.skip_place_rock
-
-	; Decide rock data randomly
-	call GetPseudoRandomByte
-	and `11
-	cp 0
-	jr nz,.skip_place_rock
-
-	; place rock tile
-	push hl
-	ld h,d
-	ld l,e
-
-	; add PRNG to rock tile variation
-	call GetPseudoRandomByte
-	and `11             ; limit to 0-31 tile indices
-	add RockTilesOffset 
-	ld [hl], a
-	pop hl
-
-.skip_place_rock:
-
-	inc hl
-	inc de
-	inc c
-
-	ld a,c
-	cp 20
-	jp nz, .dont_increase_row
-
-	push hl
-	; move to next row by adding 12 to DE
-	ld h,d    ; DE -> HL
-	ld l,e
-	ld de,12 
-	add hl,de ; HL += 12
-	ld d,h    ; HL -> DE
-	ld e,l
-	ld c,0
-
-	pop hl
-
-.dont_increase_row:
-
-	ld   a, h
-    cp   HIGH(RockDataEnd)
-    jr   nz, .next_tile
-
-    ld   a, l
-    cp   LOW(RockDataEnd)
-    jr   nz, .next_tile
-
-	ret
 
 ; --------------------------------
 ; Update player movement
@@ -615,6 +608,12 @@ ButtonWasPressed:
 
 	cp BUTTON_A
 	jr z,.a_was_pressed
+	cp BUTTON_B
+	jr z,.b_was_pressed
+	ret
+
+.b_was_pressed:
+	call UpdateScrolling
 	ret
 
 .a_was_pressed:
@@ -679,9 +678,9 @@ ButtonIsDown:
 	ld [SprPlayerY],a
 	ret
 
-; ------------------------
+; ======================================================================
 ; play move animation
-; -----------------------
+; ======================================================================
 
 .PlayMoveAnimation:
 
@@ -692,61 +691,11 @@ call SpriteAnimationAdd
 
 ret 
 
-; -----------------------------
-; Generate Background Pattern
-; -----------------------------
-; Fill BG map at $9800 with random tiles from 0-9, else tile 0
 
-GenerateBackgroundPattern:
-
-	ld hl, $9800        ; start of BG map
-	ld bc, 32 * 32      ; size of BG map (32x32 tiles)
-
-.gen_loop:
-	
-	call GetPseudoRandomByte
-	and `111111             ; limit to 0-31 tile indices
-	; compare A with 10 and jump if less than 10
-	cp 10
-	jr c, .use_tile ; if the random number is less the 10, use tile number A
-	ld a, 0           ; otherwise use tile 0
-
-.use_tile:
-
-	ld [hl+], a        ; write to BG map
-	dec bc
-	ld a, b
-	or a, c
-	jp nz, .gen_loop
-	ret
-
-; -----------------------------
-; Clear Screen
-; -----------------------------
-; Set all BG map tiles from $9800 to $9C00 to 0
-
-ClearScreen:
-
-	push hl
-	push af
-
-	ld hl,$9800
-	.clearLoop
-	xor a
-	ld [hli], a
-	ld a, h
-	cp $9C ; screen ends at $9C00
-	jr nz, .clearLoop
-
-	pop af
-	pop hl
-
-	ret
-
-; -----------------------------
+; ======================================================================
 ; Wait for VBlank
-; -----------------------------
-		
+; ======================================================================
+
 WaitVBlank:
 
 		ld a, [rLY]
@@ -755,9 +704,9 @@ WaitVBlank:
 		ret
 
 
-;-----------------------------
+; ======================================================================
 ; Memcopy
-;-----------------------------	
+; ======================================================================
 ; Copy bytes from one area to another.
 ; Uses registers: a,b,c,d,e,h,l
 ; @param de: Source
@@ -774,25 +723,6 @@ Memcopy:
     or a, c
     jp nz, Memcopy
     ret
-
-; -----------------------------
-; Random
-; -----------------------------
-; Simple pseudo-random number generator
-
-GetPseudoRandomByte:
-
-	push bc
-    ld  a,[RandomSeed]   ; A = seed
-    ld   b,a         ; B = seed copy
-    ldh  a,[$ff04]    ; A = DIV (changes constantly)
-    xor  b           ; mix timer with seed
-    add  a,$3D       ; add a constant (LCG-ish step)
-    rrca             ; rotate right (more mixing)
-    ld  [RandomSeed],a   ; store new seed
-	pop bc
-    ret              ; A = random
-
 
 ; Debug print the size of the sprite data
 

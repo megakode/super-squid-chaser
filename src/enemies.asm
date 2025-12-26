@@ -157,7 +157,7 @@ UpdateEnemies:
 
     ld hl,EnemyIsActive
     add hl, bc
-    ld a, [hl]         ; Check if current shot is active..
+    ld a, [hl]         ; Check if current enemy is active..
     cp 1
     jr nz, .next_enemy ; If not, skip
 

@@ -1,5 +1,45 @@
+SECTION "Math variables", WRAM0
+
+RandomSeed: db
+
 
 SECTION "Math routines", ROM0
+
+; ==================================================
+; Init random seed
+; ==================================================
+export InitRandomSeed
+InitRandomSeed:
+
+    ld a,0xab; initial PRNG seed value
+	ld [RandomSeed], a 
+
+    ret
+
+; ======================================================================
+; Get Pseudo Random Byte
+; ======================================================================
+; Simple pseudo-random number generator
+;
+; Outputs:
+;   - A = pseudo-random byte
+; ======================================================================
+
+export GetPseudoRandomByte
+GetPseudoRandomByte:
+
+	push bc
+    ld  a,[RandomSeed]   ; A = seed
+    ld   b,a         ; B = seed copy
+    ldh  a,[$ff04]    ; A = DIV (changes constantly)
+    xor  b           ; mix timer with seed
+    add  a,$3D       ; add a constant (LCG-ish step)
+    rrca             ; rotate right (more mixing)
+    ld  [RandomSeed],a   ; store new seed
+	pop bc
+    ret              ; A = random
+
+
 ; =================================================
 ; CalculateTensAndOnes
 ; =================================================
