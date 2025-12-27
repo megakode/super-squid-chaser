@@ -70,6 +70,10 @@ CurrentShotTileY: db
 ScrollTrigger: db
 GenerateNewRowTrigger: db
 
+def AlignShipDelay = 20
+AlignShipTrigger: db       ; used to align the ship to a column after moving it after a delay
+DoAlignShip: db ; boolean flag to indicate if we should align ship to column
+
 SECTION "Entry point", ROM0
 	
 	Tiles:    
@@ -239,6 +243,9 @@ EntryPoint:
 	ld a,0
 	ld [ScrollTrigger], a
 	ld [GenerateNewRowTrigger], a
+
+	ld a,AlignShipDelay
+	ld [AlignShipTrigger], a
 	
 	; move DMA subroutine to HRAM
 	call SetupDMACopy
@@ -595,18 +602,56 @@ UpdatePlayerMovement:
 	call DecayTowardsZero
 	ld [hl], a
 
+	; *** align ship to column if needed ***
+
+	ld a,[DoAlignShip]
+	cp 0
+	jr z, .skip_align_ship
+
+
+	ld a,[AlignShipTrigger]
+	cp 0
+	jr z, .skip_decrease_align_trigger
+	dec a
+	ld [AlignShipTrigger], a
+	cp 0
+	jr nz, .skip_align_ship
+
+.skip_decrease_align_trigger:
+
+	; align ship to nearest column (multiple of 8)
+	
+	ld a,[PlayerX]
+	add 4         ; for rounding
+	and `11111000 ; mask lower 3 bits
+	ld [PlayerX], a
+
+	ld a,0
+	ld [DoAlignShip], a
+
+
+.skip_align_ship:
+
 	; *** Update sprite position ***
 
-	ld hl,PlayerX
-	ld a,[hl]        ; A = PlayerX
-	ld hl,SprPlayerX
-	ld [hl], a		; update sprite X position
+	ld a,[PlayerX]        ; A = PlayerX
+	ld [SprPlayerX], a		; update sprite X position
 
-	ld hl,PlayerY
-	ld a,[hl]        ; A = PlayerY
-	ld hl,SprPlayerY
-	ld [hl], a		; update sprite Y position
+	ld a,[PlayerY]        ; A = PlayerY
+	ld [SprPlayerY], a		; update sprite Y position
 
+	ret
+
+; --------------------------------
+; --------------------------------
+RechargeAlignShipTrigger:
+
+	ld a,AlignShipDelay
+	ld [AlignShipTrigger], a
+
+	ld a,1
+	ld [DoAlignShip], a
+	
 	ret
 	
 ; --------------------------------
@@ -644,6 +689,17 @@ ButtonWasPressed:
 ; --------------------------------
 export ButtonWasReleased
 ButtonWasReleased:
+
+	CP BUTTON_RIGHT
+	JR Z,.right_was_released
+	CP BUTTON_LEFT
+	JR Z,.left_was_released
+	ret
+
+.left_was_released:
+.right_was_released:
+
+	call RechargeAlignShipTrigger
 
 	ret
 
