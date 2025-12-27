@@ -606,7 +606,7 @@ UpdatePlayerMovement:
 
 	ld a,[DoAlignShip]
 	cp 0
-	jr z, .skip_align_ship
+	jr z, .done_align_ship
 
 
 	ld a,[AlignShipTrigger]
@@ -615,22 +615,42 @@ UpdatePlayerMovement:
 	dec a
 	ld [AlignShipTrigger], a
 	cp 0
-	jr nz, .skip_align_ship
+	jr nz, .done_align_ship
 
 .skip_decrease_align_trigger:
 
 	; align ship to nearest column (multiple of 8)
-	
-	ld a,[PlayerX]
-	add 4         ; for rounding
-	and `11111000 ; mask lower 3 bits
-	ld [PlayerX], a
 
+	ld a,[PlayerX]
+	; add 4         ; for rounding
+	; and `11111000 ; mask lower 3 bits
+	and `00000111
+	cp 0
+	jr nz, .not_aligned
+	
+	; already aligned, disabled further alignment
 	ld a,0
 	ld [DoAlignShip], a
+	jp .done_align_ship
 
+.not_aligned:
 
-.skip_align_ship:
+	cp 4
+	jr c, .align_ship_left ; If in the middle, align right
+	
+	; align right
+	ld a,[PlayerX]
+	inc a
+	ld [PlayerX], a
+	jr .done_align_ship
+	
+	.align_ship_left:
+		
+	ld a,[PlayerX]
+	dec a
+	ld [PlayerX], a
+
+.done_align_ship:
 
 	; *** Update sprite position ***
 
