@@ -68,6 +68,7 @@ CurrentShotTileX: db
 CurrentShotTileY: db
 
 ScrollTrigger: db
+GenerateNewRowTrigger: db
 
 SECTION "Entry point", ROM0
 	
@@ -237,6 +238,7 @@ EntryPoint:
 
 	ld a,0
 	ld [ScrollTrigger], a
+	ld [GenerateNewRowTrigger], a
 	
 	; move DMA subroutine to HRAM
 	call SetupDMACopy
@@ -273,18 +275,22 @@ EntryPoint:
 	call UpdatePlayerMovement
 	; call UpdateEnemies
 	call DrawEnemies ; Drawn to shadow OAM, so can be done when VRAM is locked
+	call DrawShots ; Drawn to shadow OAM
+
+	call UpdateScrolling ; Generates new rock rows as needed
 	
+	; -----------------------
 	call WaitVBlank
+	; -----------------------
 
 	ld e,1 ; offset in status bar
 	ld a,1
 	call StatusBarSetNumber
 	
-	call DrawShots
-	
+
+	call DrawGeneratedRow
 	;call StatusBarUpdate
 	
-	call UpdateScrolling
 
 	; TODO: optimize by calculating a list of "explosions" where colision occurred and only updating those rocks in the BG map during VBlank
 	call ColisionDetectionShotsRocks 
@@ -325,20 +331,25 @@ UpdateScrolling:
 	dec a
 	ld [rSCY], a
 
+
 	; generate new line of rocks if needed
+
+	ld a, [GenerateNewRowTrigger]
+	inc a
+	ld [GenerateNewRowTrigger], a
+	cp 8         ; generate new row every 8 scrolls
+	ret c        ; return if not time yet
+
+	ld a,0
+	ld [GenerateNewRowTrigger], a
+
+	; calculate which row is now at the top of the screen
 	ld a, [rSCY] ; A = SCY
-	sub 8
+	sub 8        ; take row above visible area
 	srl a
 	srl a
 	srl a		 ; divide by 8 to get tile row of upper visible area
-	; dec a        ; take row above visible area
-	ld b,a
-
-	ld a, [rSCY]
-	and `00000111
-	cp `00000000
-	ld a,b
-	call z,GenerateRockRow
+	call GenerateRockRow
 
 	ret
 

@@ -8,6 +8,9 @@
 
 SECTION "BG variables", WRAM0
 
+GeneratedRow: ds 20
+GenratedRowDestinationPtr: ds 2
+
 SECTION "BG Functions", ROM0
 
 export ClearRockRow
@@ -62,10 +65,49 @@ ClearRockRow:
 
 	ret
 
+
+; ======================================================================
+; Draw generated row to BG map
+; ======================================================================
+export DrawGeneratedRow
+DrawGeneratedRow:
+
+    push hl
+    push de
+
+    ld a, [GenratedRowDestinationPtr]
+    ld l,a
+    ld a, [GenratedRowDestinationPtr+1]
+    ld h,a
+
+    ld de, GeneratedRow
+
+    ld bc,20
+
+.copy_loop:
+
+    ld a,[de]
+    ld [hl], a
+
+    inc hl
+    inc de
+
+    dec c
+    ld a,b
+    or a, c
+    jp nz, .copy_loop
+
+    pop de
+    pop hl
+
+    ret
+
+
 ; ======================================================================
 ; Generate Rock Row
 ; ======================================================================
-; Generates a row of rocks at random positions
+; Generates a row of rocks at random positions into a buffer. 
+; Can be done without access to video memory, and then blittet to BG map later with DrawGeneratedRow.
 ;
 ; Inputs:
 ;   - A = row index (0-31)
@@ -88,6 +130,14 @@ GenerateRockRow:
 	add hl, hl ; hl = row index * 32
 
 	add hl, de ; hl = address of start of row in BG map
+
+    ld a,l
+	ld [GenratedRowDestinationPtr], a
+    ld a,h
+    ld [GenratedRowDestinationPtr+1], a
+
+    ; render row to temporary buffer
+    ld hl,GeneratedRow
 
 .tile_loop:
 
