@@ -478,6 +478,8 @@ UpdatePlayerMovement:
 	; button was just pressed, move player
 	ld hl,PlayerThrustX
 	ld [hl],-PLAYER_THRUST
+	ld a,0
+	ld [DoAlignShip], a ; cancel align ship to column when moving
 
 .check_left_done:
 
@@ -489,6 +491,8 @@ UpdatePlayerMovement:
 	; button was just pressed, move player
 	ld hl,PlayerThrustX
 	ld [hl],PLAYER_THRUST
+	ld a,0
+	ld [DoAlignShip], a ; cancel align ship to column when moving
 
 .check_right_done:
 
@@ -515,6 +519,57 @@ UpdatePlayerMovement:
 
 .check_down_done:
 
+	; *** player terrain collision detection ***
+.rock_collision_above_check:
+	ld a,[PlayerX]
+	ld d,a
+	ld a,[PlayerY]
+	ld e,a
+
+	call GetMapAddressFromSpriteCoordinates ; hl = address in BG map
+
+	ld a,[hl] 			   ; A = tile number at ship position
+	cp RockTilesOffset
+	jr c, .rock_collision_above_done       ; if tile number < RockTilesOffset, no rock present
+	cp RockTilesOffset + RockTilesCount
+	jr nc, .rock_collision_above_done      ; if tile number >= RockTilesOffset + RockTilesCount, no rock present
+
+	; Rock collision! Move player back based on velocity
+.rock_collision_above_hit:	
+
+	ld a,0
+	ld [PlayerThrustY],a
+	ld a,[PlayerY]
+	inc a
+	ld [PlayerY],a
+
+.rock_collision_above_done:
+
+.rock_collision_left_check:
+
+	ld a,[PlayerX]
+	ld d,a
+	dec d
+	ld a,[PlayerY]
+	ld e,a
+
+	call GetMapAddressFromSpriteCoordinates ; hl = address in BG map
+
+	ld a,[hl] 			   ; A = tile number at ship position
+	cp RockTilesOffset
+	jr c, .rock_collision_left_done       ; if tile number < RockTilesOffset, no rock present
+	cp RockTilesOffset + RockTilesCount
+	jr nc, .rock_collision_left_done      ; if tile number >= RockTilesOffset + RockTilesCount, no rock present
+
+.rock_collision_left_hit:	
+
+	ld a,0
+	ld [PlayerThrustX],a
+
+.rock_collision_left_done:
+
+
+.terrain_collision_done:
 
 	; *** Adjust velocity based on thrust ***
 
@@ -663,6 +718,55 @@ UpdatePlayerMovement:
 	ret
 
 ; --------------------------------
+; Get Map Address from Sprite Coordinates
+;
+; Adjusts for SCY (vertical scrolling) only
+;
+; 
+; Inputs:
+;   - D = Sprite X position in tiles
+;   - E = Sprite Y position in tiles
+; Outputs:
+;   - HL = Address in BG map corresponding to tile coordinates
+; --------------------------------
+
+GetMapAddressFromSpriteCoordinates:
+
+	ld a,[rSCY]
+	add a, e                 ; E = tile Y position + scroll Y
+	sub a,16				 ; adjust for margin
+	ld e,a
+	srl e
+	srl e
+	srl e                    ; E = tile Y position in tiles
+
+
+	; TODO: Does not handle Scroll X because we don't scroll horizontally in the game
+
+	ld h,0
+	ld l,e    ; hl = tile Y
+	add hl,hl ; hl = tile Y * 2
+	add hl,hl ; hl = tile Y * 4
+	add hl,hl ; hl = tile Y * 8
+	add hl,hl ; hl = tile Y * 16
+	add hl,hl ; hl = tile Y * 32
+	ld b,h
+	ld c,l
+	ld hl, $9800
+	add hl,bc ; hl = $9800 + (tile Y * 32)
+	
+	ld a, d ; e = Sprite X
+	sub 8
+	ld e,a
+	ld d,0
+	srl e
+	srl e
+	srl e                    ; e = Sprite X in tiles
+	add hl,de               ; hl = $9800 + (tile Y * 32) + tile X
+
+	ret
+
+; --------------------------------
 ; --------------------------------
 RechargeAlignShipTrigger:
 
@@ -678,7 +782,7 @@ RechargeAlignShipTrigger:
 ; Button was pressed event handler
 ; --------------------------------
 ; A = button identifier
-; --------------------------------
+; --------------------------------]
 export ButtonWasPressed
 ButtonWasPressed:
 
@@ -719,7 +823,21 @@ ButtonWasReleased:
 .left_was_released:
 .right_was_released:
 
+	ld a,[button_left_is_down_flag]
+	cp 1
+	jr z, .skip_recharge_align_ship_trigger ; left button is still down, don't align ship yet
+	ld a,[button_right_is_down_flag]
+	cp 1
+	jr z, .skip_recharge_align_ship_trigger
+	; both left and right buttons are up, recharge align ship trigger
 	call RechargeAlignShipTrigger
+	ret
+
+	.skip_recharge_align_ship_trigger:
+
+	ld a,0
+	ld [DoAlignShip], a ; disable align ship
+
 
 	ret
 
