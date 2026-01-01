@@ -49,9 +49,12 @@ SECTION "OAM Data", WRAM0, ALIGN[8] ; align to 256 bytes
 
 def SprEnemiesIndex = (SprEnemies - ShadowOAMData) / 4
 
+
 SECTION "Game variables", WRAM0
 
 ; Misc
+
+
 
 ; Player 
 
@@ -63,13 +66,14 @@ PlayerVelocityX: db
 PlayerVelocityY: db
 
 ; Shots / Rocks collision tracking
-
 CurrentShotTileX: db
 CurrentShotTileY: db
 
+; Scrolling
 ScrollTrigger: db
 GenerateNewRowTrigger: db
 
+; Ship movement alignment
 def AlignShipDelay = 20
 AlignShipTrigger: db       ; used to align the ship to a column after moving it after a delay
 DoAlignShip: db ; boolean flag to indicate if we should align ship to column
@@ -159,6 +163,7 @@ RockDataEnd:
 EntryPoint:
 	
 	; turn off lcd
+	call WaitVBlank
 	xor a ; ld a, 0
 	ld [rLCDC], a
 
@@ -169,7 +174,7 @@ EntryPoint:
 	ld bc, TilesEnd - Tiles
 	call Memcopy
 
-	; Copy status bar tile data to VRAM $9800
+	; Copy status bar tile data to VRAM $9C00
 	ld de,StatusbarTileMap
 	ld hl,$9c00 ; BG map start
 	ld bc, 20
@@ -269,6 +274,14 @@ EntryPoint:
 	ld b, AnimationStatePlayLooped
 	call SpriteAnimationAdd
 
+	; set a few dirty rows for testing
+	ld hl,ShadowTileMapDirtyRows
+	ld [hl], 1
+	inc hl
+	ld [hl], 1
+	inc hl	
+	ld [hl], 1
+	
 
 .game_loop:
 
@@ -279,33 +292,30 @@ EntryPoint:
 
 	call InputHandlerUpdate
 
+	call UpdateScrolling ; Generates new rock rows as needed
 	call UpdatePlayerMovement
 	; call UpdateEnemies
 	call DrawEnemies ; Drawn to shadow OAM, so can be done when VRAM is locked
 	call DrawShots ; Drawn to shadow OAM
+	;call StatusBarUpdate
+	call ColisionDetectionShotsRocks 
 
-	call UpdateScrolling ; Generates new rock rows as needed
-	
 	; -----------------------
 	call WaitVBlank
 	; -----------------------
-
+	
 	ld e,1 ; offset in status bar
 	ld a,1
 	call StatusBarSetNumber
-	
-
-	call DrawGeneratedRow
-	;call StatusBarUpdate
-	
-
-	; TODO: optimize by calculating a list of "explosions" where colision occurred and only updating those rocks in the BG map during VBlank
-	call ColisionDetectionShotsRocks 
 
 	; call the DMA subroutine we copied to HRAM, which then copies the shadow OAM data to video memory
 	ld  a, HIGH(ShadowOAMData)
 	call ExecuteDMACopy
-	;call ExecuteDMACopy ; TEST TO SLOW THINGS DOWN - REMOVE LATER	
+	
+	call DrawDirtyRowsToBGMap
+
+
+	
 
 	; This is just for testing - remove later
 	; Try to show 0 in the status bar. 
@@ -414,7 +424,7 @@ ColisionDetectionShotsRocks:
 	add hl,hl ; hl = tile Y * 32
 	ld d,h
 	ld e,l
-	ld hl, $9800
+	ld hl, ShadowTileMap
 	add hl,de ; hl = $9800 + (tile Y * 32)
 	ld a, [CurrentShotTileX]
 	ld d,0
@@ -434,6 +444,14 @@ ColisionDetectionShotsRocks:
 
 	add 4 ; advance to next rock damage state tile
 	ld [hl],a
+	; mark row as dirty
+	ld hl,CurrentShotTileY
+	ld a,[hl]
+	ld hl,ShadowTileMapDirtyRows
+	ld d,0
+	ld e,a
+	add hl,de
+	ld [hl], 1
 
 	; remove shot (set active flag to 0)
 	ld hl, PlayerShotsActive
@@ -480,7 +498,6 @@ UpdatePlayerMovement:
 	ld [hl],-PLAYER_THRUST
 	ld a,0
 	ld [DoAlignShip], a ; cancel align ship to column when moving
-
 .check_left_done:
 
 .check_right:
@@ -493,7 +510,6 @@ UpdatePlayerMovement:
 	ld [hl],PLAYER_THRUST
 	ld a,0
 	ld [DoAlignShip], a ; cancel align ship to column when moving
-
 .check_right_done:
 
 
@@ -519,7 +535,51 @@ UpdatePlayerMovement:
 
 .check_down_done:
 
+	; ******************************************
+	; *** Adjust velocity based on thrust ***
+	; ******************************************
+
+	; if( thrust.x != 0 ) PlayerVelocityX = Thrust.X
+	ld hl,PlayerThrustX
+	ld a,[hl]				; A = Thrust.X
+	cp 0				    ; if (thrust.x == 0) goto .skip_velocity_x_update
+	jr z,.skip_velocity_x_update
+	ld hl,PlayerVelocityX	; hl = address of Velocity.X
+	ld [hl],a			    ; PlayerVelocityX = Thrust.X	
+.skip_velocity_x_update
+
+	; if( thrust.y != 0 ) PlayerVelocityY = Thrust.Y
+	ld hl,PlayerThrustY
+	ld a,[hl]				; A = Thrust.Y
+	cp 0				    ; if (thrust.y == 0) goto .skip_velocity_y_update
+	jr z,.skip_velocity_y_update
+	ld hl,PlayerVelocityY	; hl = address of Velocity.Y
+	ld [hl],a			    ; PlayerVelocityY = Thrust.Y	
+.skip_velocity_y_update
+
+	; *** Update player position based on velocity ***
+
+	; PlayerX += PlayerVelocityX
+	ld hl,PlayerVelocityX
+	ld a,[hl]				; A = PlayerVelocityX
+	ld hl,PlayerX
+	ld b, [hl]				; B = PlayerX
+	add a, b				; A = PlayerX + PlayerVelocityX
+	ld [hl], a				; PlayerX = A
+
+	; PlayerY += PlayerVelocityY
+	ld hl,PlayerVelocityY
+	ld a,[hl]				; A = PlayerVelocityY
+	ld hl,PlayerY
+	ld b, [hl]				; B = PlayerY
+	add a, b				; A = PlayerY + PlayerVelocityY
+	ld [hl], a				; PlayerY = A
+
+
+	; ******************************************
 	; *** player terrain collision detection ***
+    ; ******************************************
+
 .rock_collision_above_check:
 	ld a,[PlayerX]
 	ld d,a
@@ -571,45 +631,10 @@ UpdatePlayerMovement:
 
 .terrain_collision_done:
 
-	; *** Adjust velocity based on thrust ***
-
-	; if( thrust.x != 0 ) PlayerVelocityX = Thrust.X
-	ld hl,PlayerThrustX
-	ld a,[hl]				; A = Thrust.X
-	cp 0				    ; if (thrust.x == 0) goto .skip_velocity_x_update
-	jr z,.skip_velocity_x_update
-	ld hl,PlayerVelocityX	; hl = address of Velocity.X
-	ld [hl],a			    ; PlayerVelocityX = Thrust.X	
-.skip_velocity_x_update
-
-	; if( thrust.y != 0 ) PlayerVelocityY = Thrust.Y
-	ld hl,PlayerThrustY
-	ld a,[hl]				; A = Thrust.Y
-	cp 0				    ; if (thrust.y == 0) goto .skip_velocity_y_update
-	jr z,.skip_velocity_y_update
-	ld hl,PlayerVelocityY	; hl = address of Velocity.Y
-	ld [hl],a			    ; PlayerVelocityY = Thrust.Y	
-.skip_velocity_y_update
-
-	; *** Update player position based on velocity ***
-
-	; PlayerX += PlayerVelocityX
-	ld hl,PlayerVelocityX
-	ld a,[hl]				; A = PlayerVelocityX
-	ld hl,PlayerX
-	ld b, [hl]				; B = PlayerX
-	add a, b				; A = PlayerX + PlayerVelocityX
-	ld [hl], a				; PlayerX = A
-
-	; PlayerY += PlayerVelocityY
-	ld hl,PlayerVelocityY
-	ld a,[hl]				; A = PlayerVelocityY
-	ld hl,PlayerY
-	ld b, [hl]				; B = PlayerY
-	add a, b				; A = PlayerY + PlayerVelocityY
-	ld [hl], a				; PlayerY = A
-
-	; *** Bounds checking ***
+	
+	; ************************************
+	; *** Bounds checking              ***
+	; ************************************
 
 	; if PlayerX < 8 then PlayerX = 8
 	ld hl,PlayerX
@@ -643,7 +668,9 @@ UpdatePlayerMovement:
 	ld [hl],b
 .skip_playery_max_bound:
 
-	; *** Decelerate velocity ***
+	; **************************************
+	; *** Decelerate velocity            ***
+	; **************************************
 	
 	ld hl, PlayerVelocityX
 	ld a, [hl]
@@ -657,7 +684,9 @@ UpdatePlayerMovement:
 	call DecayTowardsZero
 	ld [hl], a
 
+	; **************************************
 	; *** align ship to column if needed ***
+	; **************************************
 
 	ld a,[DoAlignShip]
 	cp 0
@@ -707,7 +736,9 @@ UpdatePlayerMovement:
 
 .done_align_ship:
 
-	; *** Update sprite position ***
+	; **************************************
+	; *** Update sprite position         ***
+	; **************************************
 
 	ld a,[PlayerX]        ; A = PlayerX
 	ld [SprPlayerX], a		; update sprite X position
@@ -752,7 +783,7 @@ GetMapAddressFromSpriteCoordinates:
 	add hl,hl ; hl = tile Y * 32
 	ld b,h
 	ld c,l
-	ld hl, $9800
+	ld hl, ShadowTileMap
 	add hl,bc ; hl = $9800 + (tile Y * 32)
 	
 	ld a, d ; e = Sprite X

@@ -6,10 +6,21 @@
 ;
 ; ==========================================================================
 
+SECTION "BG Shadow Tile Map", WRAM0[$C000]
+
+export ShadowTileMap
+ShadowTileMap:
+	ds 32 * 32 ; reserve space for 32x32 tile map
+ShadowTileMapEnd:
+def ShadowTileMapSize = ShadowTileMapEnd - ShadowTileMap
+
+
+	export ShadowTileMapDirtyRows
+ShadowTileMapDirtyRows:
+	ds 32       ; one byte per row to indicate if that row is dirty (needs redrawing)
+
 SECTION "BG variables", WRAM0
 
-GeneratedRow: ds 20
-GenratedRowDestinationPtr: ds 2
 
 SECTION "BG Functions", ROM0
 
@@ -23,6 +34,9 @@ export GenerateBackgroundRow
 
 ; ======================================================================
 ; Clear Rock Row
+;
+; inputs:
+;   - A = row index (0-31)
 ; ======================================================================
 
 ClearRockRow:
@@ -32,7 +46,7 @@ ClearRockRow:
 	push hl
 
 	ld bc,0
-	ld de, $9800        ; start of BG map
+	ld de, ShadowTileMap        ; start of BG map
 
 	ld h,0
 	ld l,a
@@ -59,55 +73,86 @@ ClearRockRow:
 
 .done:
 
+	ld hl,ShadowTileMapDirtyRows
+	ld d,0
+	ld e,a
+	add hl,de
+	ld [hl], 1 ; mark row as dirty
+
 	pop hl
 	pop de
 	pop bc
 
 	ret
 
-
 ; ======================================================================
-; Draw generated row to BG map
+; Draw Dirty Rows to BG Map
+; Must be called during VBlank
 ; ======================================================================
-export DrawGeneratedRow
-DrawGeneratedRow:
+export DrawDirtyRowsToBGMap
+DrawDirtyRowsToBGMap:
 
-    push hl
-    push de
+	ld bc,0
 
-    ld a, [GenratedRowDestinationPtr]
-    ld l,a
-    ld a, [GenratedRowDestinationPtr+1]
-    ld h,a
+.next_row:
 
-    ld de, GeneratedRow
+	ld hl,ShadowTileMapDirtyRows
+	add hl,bc
+	ld a,[hl]
+	cp 0
+	jr z, .skip_row
 
-    ld bc,20
+	ld [hl], 0 ; clear dirty flag
 
-.copy_loop:
+	push bc
 
-    ld a,[de]
-    ld [hl], a
+	; setup DST pointer in BG map
+	ld h,b
+	ld l,c
+	add hl,hl ; hl = row index * 2
+	add hl,hl ; hl = row index * 4
+	add hl,hl ; hl = row index * 8
+	add hl,hl ; hl = row index * 16
+	add hl,hl ; hl = row index * 32
+	ld b,h ; BC = index * 32
+	ld c,l
+	ld hl, $9800
+	add hl,bc ; 
+	ld d,h 
+	ld e,l  ; DE = 9800 + (row index * 32)
 
-    inc hl
-    inc de
+	; Setup SRC pointer from shadow BG map
+	ld hl,ShadowTileMap
+	add hl,bc ; HL = ShadowTileMap + (row index * 32)
+	
+	; copy row
+	REPT 20 ; number of visible tiles in a row
+	ld a,[hli]
+	ld [de],a
+	inc de
+	ENDR
+	
+	pop bc
 
-    dec c
-    ld a,b
-    or a, c
-    jp nz, .copy_loop
+	ret
 
-    pop de
-    pop hl
+	.skip_row:
 
-    ret
+	inc c
+	ld a,c
+	cp 32
+	jr c, .next_row
+
+	; TODO maybe only copy two dirty rows per frame to avoid long VBlank?
+
+	ret 
 
 
 ; ======================================================================
 ; Generate Rock Row
 ; ======================================================================
 ; Generates a row of rocks at random positions into a buffer. 
-; Can be done without access to video memory, and then blittet to BG map later with DrawGeneratedRow.
+; Can be done without access to video memory.
 ;
 ; Inputs:
 ;   - A = row index (0-31)
@@ -118,8 +163,14 @@ GenerateRockRow:
 	push de
 	push hl
 
+	ld hl,ShadowTileMapDirtyRows
+	ld d,0
+	ld e,a
+	add hl,de
+	ld [hl], 1 ; mark row as dirty
+
 	ld bc,0
-	ld de, $9800        ; start of BG map
+	ld de, ShadowTileMap        ; start of BG map
 
 	ld h,0
 	ld l,a
@@ -130,14 +181,6 @@ GenerateRockRow:
 	add hl, hl ; hl = row index * 32
 
 	add hl, de ; hl = address of start of row in BG map
-
-    ld a,l
-	ld [GenratedRowDestinationPtr], a
-    ld a,h
-    ld [GenratedRowDestinationPtr+1], a
-
-    ; render row to temporary buffer
-    ld hl,GeneratedRow
 
 .tile_loop:
 
@@ -227,6 +270,12 @@ GenerateRockMap:
 
 GenerateBackgroundRow:
 
+	ld hl,ShadowTileMapDirtyRows
+	ld d,0
+	ld e,a
+	add hl,de
+	ld [hl], 1 ; mark row as dirty
+
     ld h, 0
     ld l, a        ; row index in L
     add hl, hl ; hl = row index * 2
@@ -235,7 +284,7 @@ GenerateBackgroundRow:
     add hl, hl ; hl = row index * 16
     add hl, hl ; hl = row index * 32
 
-	ld de, $9800        ; start of BG map
+	ld de, ShadowTileMap        ; start of BG map
     add hl, de ; hl = address of start of row in BG map
 	
     ld bc, 20      ; Number of (visible) tiles in a row. (Dont generate off-screen tiles)
@@ -276,7 +325,18 @@ GenerateBackgroundMap:
 	push bc
 	push hl
 
-	ld hl, $9800        ; start of BG map
+	ld c,0 ; row index
+	ld hl,ShadowTileMapDirtyRows
+	.mark_dirty_rows:
+	ld a,1
+	ld [hli], a ; mark row as dirty
+	inc c
+	ld a,c
+	cp 32
+	jr c, .mark_dirty_rows
+
+
+	ld hl, ShadowTileMap        ; start of BG map
 	ld bc, 32 * 32      ; size of BG map (32x32 tiles)
 
 .gen_loop:
@@ -316,17 +376,21 @@ GenerateBackgroundMap:
 ClearScreen:
 
 	push hl
+	push bc
 	push af
 
-	ld hl,$9800
+	ld bc,ShadowTileMapSize
+	ld hl,ShadowTileMap
 	.clearLoop
 	xor a
 	ld [hli], a
-	ld a, h
-	cp $9C ; screen ends at $9C00
-	jr nz, .clearLoop
+	dec bc
+	ld a, b
+	or c
+	jr z, .clearLoop
 
 	pop af
+	pop bc
 	pop hl
 
 	ret
