@@ -308,11 +308,12 @@ EntryPoint:
 	ld a,1
 	call StatusBarSetNumber
 
+	call DrawDirtyRowsToBGMap
+
 	; call the DMA subroutine we copied to HRAM, which then copies the shadow OAM data to video memory
 	ld  a, HIGH(ShadowOAMData)
 	call ExecuteDMACopy
 	
-	call DrawDirtyRowsToBGMap
 
 
 	
@@ -544,8 +545,12 @@ UpdatePlayerMovement:
 	ld a,[hl]				; A = Thrust.X
 	cp 0				    ; if (thrust.x == 0) goto .skip_velocity_x_update
 	jr z,.skip_velocity_x_update
-	ld hl,PlayerVelocityX	; hl = address of Velocity.X
-	ld [hl],a			    ; PlayerVelocityX = Thrust.X	
+	ld hl,PlayerThrustX
+	ld a,[hl]				; A = PlayerVelocityX
+	ld hl,PlayerX
+	ld b, [hl]				; B = PlayerX
+	add a, b				; A = PlayerX + PlayerVelocityX
+	ld [hl], a				; PlayerX = A
 .skip_velocity_x_update
 
 	; if( thrust.y != 0 ) PlayerVelocityY = Thrust.Y
@@ -553,28 +558,13 @@ UpdatePlayerMovement:
 	ld a,[hl]				; A = Thrust.Y
 	cp 0				    ; if (thrust.y == 0) goto .skip_velocity_y_update
 	jr z,.skip_velocity_y_update
-	ld hl,PlayerVelocityY	; hl = address of Velocity.Y
-	ld [hl],a			    ; PlayerVelocityY = Thrust.Y	
-.skip_velocity_y_update
-
-	; *** Update player position based on velocity ***
-
-	; PlayerX += PlayerVelocityX
-	ld hl,PlayerVelocityX
-	ld a,[hl]				; A = PlayerVelocityX
-	ld hl,PlayerX
-	ld b, [hl]				; B = PlayerX
-	add a, b				; A = PlayerX + PlayerVelocityX
-	ld [hl], a				; PlayerX = A
-
-	; PlayerY += PlayerVelocityY
-	ld hl,PlayerVelocityY
+	ld hl,PlayerThrustY
 	ld a,[hl]				; A = PlayerVelocityY
 	ld hl,PlayerY
 	ld b, [hl]				; B = PlayerY
 	add a, b				; A = PlayerY + PlayerVelocityY
 	ld [hl], a				; PlayerY = A
-
+.skip_velocity_y_update
 
 	; ******************************************
 	; *** player terrain collision detection ***
@@ -582,6 +572,7 @@ UpdatePlayerMovement:
 
 .rock_collision_above_check:
 	ld a,[PlayerX]
+	add 3 ; adjust for ship hotspot
 	ld d,a
 	ld a,[PlayerY]
 	ld e,a
@@ -603,14 +594,18 @@ UpdatePlayerMovement:
 	inc a
 	ld [PlayerY],a
 
+	jp .rock_collision_above_check ; recheck until we are no longer colliding. It may be multiple pixels, because the terrain is also moving downwards
+
 .rock_collision_above_done:
+
+; *** Left *** 
 
 .rock_collision_left_check:
 
 	ld a,[PlayerX]
 	ld d,a
-	dec d
 	ld a,[PlayerY]
+	add 3 ; adjust for ship hotspot
 	ld e,a
 
 	call GetMapAddressFromSpriteCoordinates ; hl = address in BG map
@@ -625,9 +620,66 @@ UpdatePlayerMovement:
 
 	ld a,0
 	ld [PlayerThrustX],a
+	ld a,[PlayerX]
+	inc a
+	ld [PlayerX],a
 
 .rock_collision_left_done:
 
+	; *** Right *** 
+
+.rock_collision_right_check:
+
+	ld a,[PlayerX]
+	add 7 ; adjust for ship hotspot
+	ld d,a
+	ld a,[PlayerY]
+	add 3 ; adjust for ship hotspot
+	ld e,a
+
+	call GetMapAddressFromSpriteCoordinates ; hl = address in BG map
+
+	ld a,[hl] 			   ; A = tile number at ship position
+	cp RockTilesOffset
+	jr c, .rock_collision_right_done       ; if tile number < RockTilesOffset, no rock present
+	cp RockTilesOffset + RockTilesCount
+	jr nc, .rock_collision_right_done      ; if tile number >= RockTilesOffset + RockTilesCount, no rock present
+
+.rock_collision_right_hit:	
+	ld a,0
+	ld [PlayerThrustX],a
+	ld a,[PlayerX]
+	dec a
+	ld [PlayerX],a
+
+.rock_collision_right_done:
+
+		; *** below *** 
+
+.rock_collision_below_check:
+
+	ld a,[PlayerX]
+	add 4 ; adjust for ship hotspot
+	ld d,a
+	ld a,[PlayerY]
+	add 7 ; adjust for ship hotspot
+	ld e,a
+
+	call GetMapAddressFromSpriteCoordinates ; hl = address in BG map
+
+	ld a,[hl] 			   ; A = tile number at ship position
+	cp RockTilesOffset
+	jr c, .rock_collision_below_done       ; if tile number < RockTilesOffset, no rock present
+	cp RockTilesOffset + RockTilesCount
+	jr nc, .rock_collision_below_done      ; if tile number >= RockTilesOffset + RockTilesCount, no rock present
+.rock_collision_below_hit:	
+	ld a,0
+	ld [PlayerThrustY],a
+	ld a,[PlayerY]
+	dec a
+	ld [PlayerY],a
+
+.rock_collision_below_done:
 
 .terrain_collision_done:
 
@@ -672,13 +724,13 @@ UpdatePlayerMovement:
 	; *** Decelerate velocity            ***
 	; **************************************
 	
-	ld hl, PlayerVelocityX
+	ld hl, PlayerThrustX
 	ld a, [hl]
 	ld b,PLAYER_DEACCELERATION
 	call DecayTowardsZero
 	ld [hl], a
 
-	ld hl,PlayerVelocityY
+	ld hl,PlayerThrustY
 	ld a, [hl]
 	ld b,PLAYER_DEACCELERATION
 	call DecayTowardsZero
