@@ -335,7 +335,7 @@ UpdateScrolling:
 	ld a,[ScrollTrigger]
 	inc a
 	ld [ScrollTrigger], a
-	cp 8 ; Scroll every 1 frame
+	cp FRAMES_BETWEEN_SCROLL ; Scroll every n frame
 	ret c
 
 	; Do scrolling...
