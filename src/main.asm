@@ -621,7 +621,7 @@ UpdatePlayerMovement:
 	ld a,0
 	ld [PlayerThrustX],a
 	ld a,[PlayerX]
-	inc a
+	add PLAYER_THRUST
 	ld [PlayerX],a
 
 .rock_collision_left_done:
@@ -649,7 +649,7 @@ UpdatePlayerMovement:
 	ld a,0
 	ld [PlayerThrustX],a
 	ld a,[PlayerX]
-	dec a
+	add -PLAYER_THRUST
 	ld [PlayerX],a
 
 .rock_collision_right_done:
@@ -676,7 +676,7 @@ UpdatePlayerMovement:
 	ld a,0
 	ld [PlayerThrustY],a
 	ld a,[PlayerY]
-	dec a
+	add -PLAYER_THRUST
 	ld [PlayerY],a
 
 .rock_collision_below_done:
