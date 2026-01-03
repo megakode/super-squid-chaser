@@ -2,6 +2,8 @@
 INCLUDE "hardware.inc"
 	rev_Check_hardware_inc 4.0
 
+INCLUDE "config.inc"
+
 SECTION "Header", ROM0[$100]
 
 	; This is your ROM's entry point
@@ -43,8 +45,8 @@ SECTION "OAM Data", WRAM0, ALIGN[8] ; align to 256 bytes
 		SprPlayerTileNum:   db
 		SprPlayerAttributes:db
 		SprShots:  ds 4 * 5 ; reserve space for 5 shots (4 bytes each)
-		SprEnemies:  ds 4 * 20 ; reserve space for 20 enemies (4 bytes each)
-		ds 4 * 14 ; reserve space for 40 sprites (4 bytes each)
+		SprEnemies:  ds 4 * MAX_ENEMIES ; reserve space for x enemies (4 bytes each)
+		ds 4 * 24 ; reserve space for 40 sprites (4 bytes each)
 	ShadowOAMDataEnd:	
 
 def SprEnemiesIndex = (SprEnemies - ShadowOAMData) / 4

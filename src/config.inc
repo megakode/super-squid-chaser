@@ -1,7 +1,19 @@
+
+; *** Player movement ****************
+
 def PLAYER_THRUST = 2
 def PLAYER_DEACCELERATION = 1
 export PLAYER_THRUST
 export PLAYER_DEACCELERATION
+
+; *** Enemies *************************
+
+def MAX_ENEMIES = 10
+def ENEMIES_SPEED = 2
+export MAX_ENEMIES
+export ENEMIES_SPEED
+
+; *** Game settings ********************
 
 def FRAMES_BETWEEN_SCROLL = 8
 export FRAMES_BETWEEN_SCROLL

@@ -1,9 +1,7 @@
 INCLUDE "hardware.inc"
+INCLUDE "config.inc"
 
 SECTION "Enemy variable", WRAM0
-
-def MAX_ENEMIES = 20
-def ENEMIES_SPEED = 2
 
 EnemyCount:  ds 1                 ; Number of active player shots
 EnemyX:      ds MAX_ENEMIES  ; X positions of player shots

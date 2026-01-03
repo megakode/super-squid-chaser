@@ -1,8 +1,10 @@
 {
     "rgbdsz80.includePath": [
         "src/",
-        "src/constants",
-        "src/macros"
+        "src/lib",
+        "src/macros",
+        "include"
+
     ],
     "makefile.configureOnOpen": false
 }
