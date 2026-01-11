@@ -3,10 +3,10 @@ INCLUDE "config.inc"
 
 SECTION "Enemy variable", WRAM0
 
-EnemyCount:  ds 1                 ; Number of active player shots
-EnemyX:      ds MAX_ENEMIES  ; X positions of player shots
-EnemyY:      ds MAX_ENEMIES  ; Y positions of player shots
-EnemyIsActive: ds MAX_ENEMIES  ; Active flags for player shots
+EnemyCount:  ds 1              ; Number of active enemies
+EnemyX:      ds MAX_ENEMIES    ; X positions of sprite
+EnemyY:      ds MAX_ENEMIES    ; Y positions of sprite
+EnemyIsActive: ds MAX_ENEMIES  ; Active flags for sprites (1 = active, 0 = inactive)
 
 export EnemySpritesPtr
 EnemySpritesPtr: ds 2 ; Pointer to the sprites used in shadow OAM
@@ -15,7 +15,7 @@ SECTION "Enemy routines", ROM0
 
 export EnemiesInit
 EnemiesInit:
-    ; Initialize player shots data
+    ; Initialize enemy data
     ld d, h
     ld e, l
     ld hl,EnemySpritesPtr
@@ -23,7 +23,7 @@ EnemiesInit:
     inc hl
     ld [hl],d
 
-    ; Set shot sprite indexes
+    ; Set sprite indexes
     ld a,[EnemySpritesPtr]
     ld l,a
     ld a,[EnemySpritesPtr+1]
@@ -35,7 +35,7 @@ EnemiesInit:
     inc hl
     ld [hl], a ; Set X
     inc hl
-    ld [hl], 0x08 ; Set Tile number for shot sprite
+    ld [hl], 0x08 ; Set Tile number for sprite
     inc hl
     ld [hl], 0 ; Attributes
     inc hl
@@ -55,7 +55,7 @@ EnemiesInit:
 export ResetEnemies
 ResetEnemies:
 
-    ; Initialize all player shots to inactive
+    ; Initialize all enemies to inactive
     ld hl, EnemyIsActive
     ld c, MAX_ENEMIES
 .reset_loop:
@@ -65,7 +65,7 @@ ResetEnemies:
     jr nz, .reset_loop
 
     ld hl, EnemyCount
-    ld [hl], 0  ; Set shot count to 0
+    ld [hl], 0  ; Set enemy count to 0
 
     ret
 
@@ -75,8 +75,8 @@ ResetEnemies:
 ; Adds a new enemy if there is an available slot
 ;
 ; Inputs:
-;   D - X position of the shot
-;   E - Y position of the shot
+;   D - X position of the sprite
+;   E - Y position of the sprite
 ;
 ; Outputs:
 ;   A - 1 if an enemy is added successfully, 0 if no slot available
@@ -203,8 +203,8 @@ UpdateEnemies:
     ret
 
 ; ==========================================
-; DrawShots
-; 
+; DrawEnemies
+; Draws active enemies to shadow OAM (EnemySpritesPtr)
 ; ==========================================
 export DrawEnemies
 DrawEnemies:
