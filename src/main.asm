@@ -46,6 +46,7 @@ SECTION "OAM Data", WRAM0, ALIGN[8] ; align to 256 bytes
 		SprPlayerAttributes:db
 		SprShots:  ds 4 * 5 ; reserve space for 5 shots (4 bytes each)
 		SprEnemies:  ds 4 * MAX_ENEMIES ; reserve space for x enemies (4 bytes each)
+		SprExplosions:
 		ds 4 * 24 ; reserve space for 40 sprites (4 bytes each)
 	ShadowOAMDataEnd:	
 
@@ -91,6 +92,10 @@ SECTION "Entry point", ROM0
 		INCBIN "assets/rocks_3.2bpp" ; damaged 2/3
 		INCBIN "assets/rocks_4.2bpp" ; damaged 3/3
 	RockTilesEnd:
+		INCBIN "assets/rocks_5.2bpp" ; destroyed (empty) - yes, this is after RockTilesEnd, as collision detection ignores this tile
+	ExplosionTiles:
+		INCBIN "assets/explosion.2bpp"
+	ExplosionTilesEnd:
 	TilesEnd:
 
 	Sprites:	
@@ -107,13 +112,11 @@ SECTION "Entry point", ROM0
 ;println "Statusbar tile offset in tiles: 0x{x:StatusbarTileOffset}"
 
 def AlienOffset1 = (SpriteDataAlien1 - Sprites) / 16
-println "Alien 1 sprite offset in tiles: 0x{x:AlienOffset1}"
-
 def AlienOffset2 = (SpriteDataAlien2 - Sprites) / 16
-println "Alien 2 sprite offset in tiles: 0x{x:AlienOffset2}"
-
 def AlienOffset3 = (SpriteDataAlien3 - Sprites) / 16
-println "Alien 2 sprite offset in tiles: 0x{x:AlienOffset3}"
+
+def ExplosionTilesOffset = (ExplosionTiles - Tiles) / 16
+def ExplosionTilesCount = (ExplosionTilesEnd - ExplosionTiles) / 16
 
 export RockTilesOffset
 def RockTilesOffset = (RockTiles - Tiles) / 16
@@ -146,21 +149,9 @@ SprDef_Alien3:
 db AlienOffset3, 5, 10, 0  ; Alien 3
 SprDef_Exhaust:
 db 1, 5, 10, 0
-	
 
-RockData: 
-db 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
-db 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-db 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1
-db 0,0,0,1,0,1,0,1,1,0,0,1,0,1,0,0,1,0,1,0
-db 0,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-db 0,0,0,1,0,0,0,0,0,1,0,0,0,1,1,0,1,0,0,0
-db 0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0
-db 0,1,0,0,1,0,0,0,0,1,0,0,0,0,1,0,1,0,1,0
-db 0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0
-db 0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0
-RockDataEnd:
-
+TileAnimExplosion:
+db ExplosionTilesOffset, ExplosionTilesCount, 10, 0
 
 EntryPoint:
 	
@@ -168,6 +159,9 @@ EntryPoint:
 	call WaitVBlank
 	xor a ; ld a, 0
 	ld [rLCDC], a
+
+	ld hl,ShadowTileMap
+	call TileAnimationsInit
 
 	; Copy BG tile data to VRAM $9000
 
@@ -276,13 +270,17 @@ EntryPoint:
 	ld b, AnimationStatePlayLooped
 	call SpriteAnimationAdd
 
-	; set a few dirty rows for testing
-	ld hl,ShadowTileMapDirtyRows
-	ld [hl], 1
-	inc hl
-	ld [hl], 1
-	inc hl	
-	ld [hl], 1
+	; add test explosion
+
+	; b = Play mode (1 = play_looped, 2 = play_once, 3 = play_and_remove)
+	; de = pointer to source sprite definition (4 bytes)
+	; hl = address of memory location to animate
+
+	ld b,1
+	ld de, TileAnimExplosion
+	ld hl,0 ; x=0,y=0 
+
+	call TileAnimationAdd
 	
 
 .game_loop:
@@ -296,6 +294,7 @@ EntryPoint:
 
 	call UpdateScrolling ; Generates new rock rows as needed
 	call UpdatePlayerMovement
+	call TileAnimationsUpdate
 	; call UpdateEnemies
 	call DrawEnemies ; Drawn to shadow OAM, so can be done when VRAM is locked
 	call DrawShots ; Drawn to shadow OAM
@@ -315,9 +314,6 @@ EntryPoint:
 	; call the DMA subroutine we copied to HRAM, which then copies the shadow OAM data to video memory
 	ld  a, HIGH(ShadowOAMData)
 	call ExecuteDMACopy
-	
-
-
 	
 
 	; This is just for testing - remove later

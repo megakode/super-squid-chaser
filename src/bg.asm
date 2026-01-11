@@ -8,14 +8,17 @@
 
 SECTION "BG Shadow Tile Map", WRAM0[$C000]
 
+
+
 export ShadowTileMap
 ShadowTileMap:
 	ds 32 * 32 ; reserve space for 32x32 tile map
 ShadowTileMapEnd:
+	
 def ShadowTileMapSize = ShadowTileMapEnd - ShadowTileMap
 
 
-	export ShadowTileMapDirtyRows
+export ShadowTileMapDirtyRows
 ShadowTileMapDirtyRows:
 	ds 32       ; one byte per row to indicate if that row is dirty (needs redrawing)
 
@@ -134,7 +137,11 @@ DrawDirtyRowsToBGMap:
 	
 	pop bc
 
-	ret
+	; Return after copying one row. 
+	; Call repeatedly to draw all rows. 
+	; This ensures VBlank time is not exceeded.
+	; We do have time to copy 2 (maybe 3) rows per VBlank, but to be safe we only do one for now.
+	ret 
 
 	.skip_row:
 
@@ -142,8 +149,6 @@ DrawDirtyRowsToBGMap:
 	ld a,c
 	cp 32
 	jr c, .next_row
-
-	; TODO maybe only copy two dirty rows per frame to avoid long VBlank?
 
 	ret 
 
