@@ -1,3 +1,6 @@
+INCLUDE "hardware.inc"
+
+
 ; ==========================================================================
 ;
 ; Routines for managing background tile graphics
@@ -34,6 +37,46 @@ export ClearScreen
 
 export GenerateBackgroundMap
 export GenerateBackgroundRow
+
+; ======================================================================
+; Set BG Tile by X,Y
+;
+; Tile is set in the shadow BG map, and marked as dirty for later update
+;
+; inputs:
+;   - A = tile index
+;   - D = Y row index (0-31)
+;   - E = X column index (0-31)
+; ======================================================================
+
+export SetBGTileByXY
+SetBGTileByXY:
+
+	push hl
+
+	ld h,0
+	ld l,d
+	add hl, hl ; hl = row index * 2
+	add hl, hl ; hl = row index * 4
+	add hl, hl ; hl = row index * 8
+	add hl, hl ; hl = row index * 16
+	add hl, hl ; hl = row index * 32
+	
+	ld b,0
+	ld c,d ; bc = row
+	ld d,0 ; de = offset into shadow map
+	ld hl, ShadowTileMap ; start of BG map
+	add hl, de ; hl = address of tile in BG map
+	
+	ld [hl], a
+
+	ld hl,ShadowTileMapDirtyRows
+	add hl, bc
+	ld [hl], 1 ; mark row as dirty
+
+	pop hl
+
+	ret
 
 ; ======================================================================
 ; Clear Rock Row
@@ -397,5 +440,116 @@ ClearScreen:
 	pop af
 	pop bc
 	pop hl
+
+	ret
+
+
+; ======================================================================
+; Get Map Address from Sprite Coordinates
+; ======================================================================
+;
+; Adjusts for SCY (vertical scrolling) only
+; 
+; Inputs:
+;   - D = Sprite X position in pixels
+;   - E = Sprite Y position in pixels
+; Outputs:
+;   - HL = Address in BG map corresponding to tile coordinates
+;
+; ======================================================================
+export GetMapAddressFromSpriteCoordinates
+GetMapAddressFromSpriteCoordinates:
+
+	ld a,[rSCY]
+	add a, e                 ; E = spr Y position + scroll Y
+	sub a,16				 ; adjust for margin
+	ld e,a
+	srl e
+	srl e
+	srl e                    ; E = sprite Y position in tiles
+
+
+	; TODO: Does not handle Scroll X because we don't scroll horizontally in the game
+
+	ld h,0
+	ld l,e    ; hl = tile Y
+	add hl,hl ; hl = tile Y * 2
+	add hl,hl ; hl = tile Y * 4
+	add hl,hl ; hl = tile Y * 8
+	add hl,hl ; hl = tile Y * 16
+	add hl,hl ; hl = tile Y * 32
+	ld b,h
+	ld c,l
+	ld hl, ShadowTileMap
+	add hl,bc ; hl = $9800 + (tile Y * 32)
+	
+	ld a, d ; e = Sprite X
+	sub 8
+	ld e,a
+	ld d,0
+	srl e
+	srl e
+	srl e                    ; e = Sprite X in tiles
+	add hl,de               ; hl = $9800 + (tile Y * 32) + tile X
+
+	ret
+
+
+; ======================================================================
+; Convert Sprite X,Y to Tile X,Y
+; inputs:
+;   - D = Sprite X position in pixels
+;   - E = Sprite Y position in pixels
+; outputs:
+;   - D = Tile Y position
+;   - E = Tile X position
+; ======================================================================
+export ConvertSpriteXYToTileXY
+ConvertSpriteXYToTileXY:
+
+	ld a,[rSCY]
+	add a, e                 ; E = spr Y position + scroll Y
+	sub a,16				 ; adjust for margin
+	ld e,a
+	srl e
+	srl e
+	srl e                    ; E = sprite Y position in tiles
+
+
+	ld a, d ; e = Sprite X
+	sub 8
+	srl d
+	srl d
+	srl d                    ; d = Sprite X in tiles
+
+	ret
+
+; ======================================================================
+; Get Map Index from Tile X,Y
+; Inputs:
+;   - D = Tile X position (0-31)
+;   - E = Tile Y position (0-31)
+; Outputs:
+;   - HL = Index in BG map corresponding to tile coordinates
+; ======================================================================
+
+export GetMapIndexFromTileXY
+GetMapIndexFromTileXY:
+
+	push bc
+
+	ld h,0
+	ld l,e    ; hl = tile Y
+	add hl,hl ; hl = tile Y * 2
+	add hl,hl ; hl = tile Y * 4
+	add hl,hl ; hl = tile Y * 8
+	add hl,hl ; hl = tile Y * 16
+	add hl,hl ; hl = tile Y * 32
+	
+	ld e,d
+	ld d,0
+	add hl,de               ; hl = (tile Y * 32) + tile X
+
+	pop bc
 
 	ret

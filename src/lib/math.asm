@@ -105,3 +105,22 @@ DecayTowardsZero:
 
 .done:
     ret
+
+; =================================================
+; ABS - Get absolute value of A
+; =================================================
+; Input:
+;   A - signed value
+; Output:
+;   A - absolute value
+; =================================================
+export ABS
+ABS:
+    bit 7, a
+    jr z, .done
+
+    ; negate
+    cpl
+    inc a
+.done:
+    ret

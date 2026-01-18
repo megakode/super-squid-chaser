@@ -60,7 +60,8 @@ SECTION "Game variables", WRAM0
 
 
 ; Player 
-
+export PlayerX
+export PlayerY
 PlayerX: db
 PlayerY: db
 PlayerThrustX: db
@@ -96,14 +97,15 @@ SECTION "Entry point", ROM0
 	ExplosionTiles:
 		INCBIN "assets/explosion.2bpp"
 	ExplosionTilesEnd:
+	MineTiles:
+		INCBIN "assets/mine.2bpp"
+	MineTilesEnd:
 	TilesEnd:
 
 	Sprites:	
 		INCBIN "assets/sprites.2bpp"
 	SpriteDataAlien1:
 		INCBIN "assets/alien1.2bpp"
-	SpriteDataAlien2:
-		INCBIN "assets/alien2.2bpp"
 	SpriteDataAlien3:
 		INCBIN "assets/alien3.2bpp"
 	SpritesEnd:
@@ -112,17 +114,20 @@ SECTION "Entry point", ROM0
 ;println "Statusbar tile offset in tiles: 0x{x:StatusbarTileOffset}"
 
 def AlienOffset1 = (SpriteDataAlien1 - Sprites) / 16
-def AlienOffset2 = (SpriteDataAlien2 - Sprites) / 16
+;def AlienOffset2 = (SpriteDataAlien2 - Sprites) / 16
 def AlienOffset3 = (SpriteDataAlien3 - Sprites) / 16
 
 def ExplosionTilesOffset = (ExplosionTiles - Tiles) / 16
 def ExplosionTilesCount = (ExplosionTilesEnd - ExplosionTiles) / 16
 
+export MineTilesOffset
+export MineTilesCount
+def MineTilesOffset = (MineTiles - Tiles) / 16
+def MineTilesCount = (MineTilesEnd - MineTiles) / 16
+
 export RockTilesOffset
 def RockTilesOffset = (RockTiles - Tiles) / 16
-println "Rock tiles offset in tiles: 0x{x:RockTilesOffset}"
 def RockTilesCount = (RockTilesEnd - RockTiles) / 16
-println "Rock tiles count: {d:RockTilesCount} tiles"
 ; ----------------------------------------------
 ; Sprite Definitions
 ; ----------------------------------------------
@@ -143,15 +148,19 @@ println "Rock tiles count: {d:RockTilesCount} tiles"
 
 SprDef_Alien1:
 db AlienOffset1, 4, 10, 0  ; Alien 1
-SprDef_Alien2:
-db AlienOffset2, 5, 10, 0  ; Alien 2
-SprDef_Alien3:
-db AlienOffset3, 5, 10, 0  ; Alien 3
+;SprDef_Alien2:
+;db AlienOffset2, 5, 10, 0  ; Alien 2
+;SprDef_Alien3:
+;db AlienOffset3, 5, 10, 0  ; Alien 3
 SprDef_Exhaust:
 db 1, 5, 10, 0
 
 TileAnimExplosion:
 db ExplosionTilesOffset, ExplosionTilesCount, 10, 0
+
+export MineAnim
+MineAnim:
+db MineTilesOffset, MineTilesCount, 10, 0
 
 EntryPoint:
 	
@@ -184,6 +193,9 @@ EntryPoint:
 	call Memcopy
 
 	call InitRandomSeed
+
+	call MinesInit
+
 	
 	call ClearScreen
 	call GenerateBackgroundMap
@@ -272,19 +284,25 @@ EntryPoint:
 
 	; add test explosion
 
-	; b = Play mode (1 = play_looped, 2 = play_once, 3 = play_and_remove)
-	; de = pointer to source sprite definition (4 bytes)
+	; b = Play mode (1 = play_looped, 2 = play_once)
+	; de = pointer to source animation definition (4 bytes)
 	; hl = address of memory location to animate
 
-	ld b,1
-	ld de, TileAnimExplosion
-	ld hl,0 ; x=0,y=0 
+	; ld b,1
+	; ld de, MineAnim
+	; ld hl,0 ; x=0,y=0 
 
-	call TileAnimationAdd
+	; call TileAnimationAdd
+
+	; add test mine
+	ld d,0
+	ld e,0
+	call MineAdd
 	
 
 .game_loop:
 
+	call UpdateScrolling ; Generates new rock rows as needed
 	call SpriteAnimationsUpdate
 	call UpdateShots
 
@@ -292,9 +310,9 @@ EntryPoint:
 
 	call InputHandlerUpdate
 
-	call UpdateScrolling ; Generates new rock rows as needed
 	call UpdatePlayerMovement
 	call TileAnimationsUpdate
+	call MinesUpdate
 	; call UpdateEnemies
 	call DrawEnemies ; Drawn to shadow OAM, so can be done when VRAM is locked
 	call DrawShots ; Drawn to shadow OAM
@@ -795,55 +813,6 @@ UpdatePlayerMovement:
 
 	ld a,[PlayerY]        ; A = PlayerY
 	ld [SprPlayerY], a		; update sprite Y position
-
-	ret
-
-; --------------------------------
-; Get Map Address from Sprite Coordinates
-;
-; Adjusts for SCY (vertical scrolling) only
-;
-; 
-; Inputs:
-;   - D = Sprite X position in tiles
-;   - E = Sprite Y position in tiles
-; Outputs:
-;   - HL = Address in BG map corresponding to tile coordinates
-; --------------------------------
-
-GetMapAddressFromSpriteCoordinates:
-
-	ld a,[rSCY]
-	add a, e                 ; E = tile Y position + scroll Y
-	sub a,16				 ; adjust for margin
-	ld e,a
-	srl e
-	srl e
-	srl e                    ; E = tile Y position in tiles
-
-
-	; TODO: Does not handle Scroll X because we don't scroll horizontally in the game
-
-	ld h,0
-	ld l,e    ; hl = tile Y
-	add hl,hl ; hl = tile Y * 2
-	add hl,hl ; hl = tile Y * 4
-	add hl,hl ; hl = tile Y * 8
-	add hl,hl ; hl = tile Y * 16
-	add hl,hl ; hl = tile Y * 32
-	ld b,h
-	ld c,l
-	ld hl, ShadowTileMap
-	add hl,bc ; hl = $9800 + (tile Y * 32)
-	
-	ld a, d ; e = Sprite X
-	sub 8
-	ld e,a
-	ld d,0
-	srl e
-	srl e
-	srl e                    ; e = Sprite X in tiles
-	add hl,de               ; hl = $9800 + (tile Y * 32) + tile X
 
 	ret
 

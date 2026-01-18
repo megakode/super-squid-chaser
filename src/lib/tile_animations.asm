@@ -131,7 +131,7 @@ TileAnimationFindByState:
 
 ; b = Play mode (1 = play_looped, 2 = play_once, 3 = play_and_remove)
 ; de = pointer to source sprite definition (4 bytes)
-; hl = address of memory location to animate
+; hl = tile map index (0-4095) of the tile to animate. The base address if added later in the TileAnimationsUpdate routine.
 ; Returns:
 ; None
 

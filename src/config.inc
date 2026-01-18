@@ -13,6 +13,9 @@ def ENEMIES_SPEED = 2
 export MAX_ENEMIES
 export ENEMIES_SPEED
 
+def MINE_COUNTDOWN_AMOUNT = 20 ; Frames until mine explodes after triggered
+export MINE_COUNTDOWN_AMOUNT
+
 ; *** Game settings ********************
 
 def FRAMES_BETWEEN_SCROLL = 8
