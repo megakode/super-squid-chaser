@@ -200,7 +200,9 @@ MinesUpdate:
     ld hl,MineCount
     dec [hl] ; Decrement mine count
 
-    call MineExplode ; e=x, d=y
+    ; input: c = mine index
+    call MineRemove
+    call MineExplode
     jr .next_mine
 
 .check_if_within_player_radius:
@@ -256,12 +258,12 @@ MinesUpdate:
     ld [hl], 1
 
 
-	; input: d = mine tile X, e = mine tile Y
+	; input: d = mine tile y, e = mine tile x
     ; output: hl = address in BG map
-    ld hl,MineX
+    ld hl,MineY
     add hl,bc
     ld d, [hl]
-    ld hl,MineY
+    ld hl,MineX
     add hl,bc
     ld e, [hl]
     call GetMapIndexFromTileXY
@@ -278,9 +280,73 @@ MinesUpdate:
     ret
 
 
+; ==========================================
+; MineExplode
+; Handles mine explosion effects
+; Inputs:
+; c - mine index
+; ==========================================
+
 MineExplode:   
     ; TODO implement this.
     ; - remove mine tile from BG map
     ; - create explosion animation at mine location
     ; - deal damage to player if within explosion radius
     ret 
+
+
+; =================================================
+; MineRemove
+;
+; Removes a mine
+;
+; - disables it in the mine list
+; - removes its tile from the BG map
+; - stop any ongoing tile animation
+;
+; Inputs:
+;   C = mine index to remove
+; =================================================
+export MineRemove
+MineRemove:
+    push bc
+    push hl
+    push af
+    
+    ; Disable mine
+    ld b,0
+    ld hl,MineIsActive
+    add hl,bc
+    ld [hl], b ; Set inactive
+
+    ld hl,MineY
+    add hl,bc
+    ld d, [hl]
+    ld hl,MineX
+    add hl,bc
+    ld e, [hl]
+
+    ; Stop any ongoing tile animation
+    call GetMapIndexFromTileXY ; in: d=y, e=x; out:  HL = tile map Index
+    
+    ; Clear tile
+    ld a,0 ; tile 0 = clear
+    call SetBGTileByXY ; input d=y, e=x, a=tile (0 to clear)
+    
+    ; Stop tile animation
+    ld d,h
+    ld e,l ; de = tile map index
+    call TileAnimationFindByTileMapIndex ; in: de = tile map index
+
+    jr nc, .no_animation_found
+
+    ; Animation found, remove it
+    ld [hl],0 ; mark as inactive
+
+
+.no_animation_found:
+
+    pop af
+    pop hl
+    pop bc
+    ret

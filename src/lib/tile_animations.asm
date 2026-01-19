@@ -26,8 +26,8 @@ TileAnimations:
 	; 3 curent frame,
 	; 4 number of total frames
 	; 5 tile data index ; index of the first tile in the animation sequence
-	; 6 tile map offset (low byte), offset into the TileMapAddress where the tile number is stored
-	; 7 tile map offset high byte)
+	; 6 tile map offset (low byte), offset into the TileMap where the tile to animate is located
+	; 7 tile map offset (high byte)
 
 	ds MAX_TILE_ANIMATIONS * SizeOfTileAnimation
 
@@ -76,7 +76,7 @@ TileAnimationsInit:
 
 	ret
 
-	; -----------------------------
+; -----------------------------
 ; Find TileAnimation with a given state
 ; Inputs:
 ; B = desired state to find (0 = inactive, 1 = play_looped, 2 = play_once, 3 = play_and_remove )
@@ -112,6 +112,79 @@ TileAnimationFindByState:
 	pop de
 	pop af
 	pop bc
+
+	ret
+
+; ======================================================================
+; Find Tile Animation by tile map index
+;
+; Inputs:
+; de = tile map index (0-4095) of the tile to animate
+; Returns:
+; HL = ptr to tile animation entry in TileAnimations
+; Carry flag set if found, reset if not found
+; ======================================================================
+export TileAnimationFindByTileMapIndex
+TileAnimationFindByTileMapIndex:
+
+	; TODO : implement this function, its garbage right now
+
+	push bc
+	
+	ld hl, TileAnimations
+	
+	ld b,0
+	ld c, MAX_TILE_ANIMATIONS ; total number of entries
+
+	
+.findAnimationLoop
+
+	ld a,[hl]				; get state byte
+	inc hl
+	inc hl
+	inc hl
+	inc hl
+	inc hl
+	inc hl ; point to tile map offset low byte
+	cp 0 				    ; is the state in 'a' inactive?
+	jr z, .nextAnimationAddOneToHL    ; if yes, skip to next animation
+	
+	
+	ld a, [hl]                ; get tile map offset low byte
+	cp a, e
+	inc hl
+	jr nz, .nextAnimation
+	ld a, [hl]				  ; get tile map offset high byte
+	cp a, d
+	jr nz, .nextAnimation
+
+	; found it!
+
+	ld bc, -7
+	add hl, bc ; point back to state byte of found animation
+	scf 
+	jp .done
+	
+.nextAnimationAddOneToHL
+	inc hl
+
+.nextAnimation
+
+	dec c
+	inc hl
+	ld a,c
+	cp 0
+	jr nz, .findAnimationLoop
+
+	; no more entries = not found
+
+	ld hl,0
+	scf 
+	ccf ; clear carry to indicate not found
+
+	.done
+
+		pop bc
 
 	ret
 

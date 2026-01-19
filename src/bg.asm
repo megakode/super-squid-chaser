@@ -53,6 +53,7 @@ export SetBGTileByXY
 SetBGTileByXY:
 
 	push hl
+	push bc
 
 	ld h,0
 	ld l,d
@@ -74,6 +75,7 @@ SetBGTileByXY:
 	add hl, bc
 	ld [hl], 1 ; mark row as dirty
 
+	pop bc
 	pop hl
 
 	ret
@@ -527,8 +529,8 @@ ConvertSpriteXYToTileXY:
 ; ======================================================================
 ; Get Map Index from Tile X,Y
 ; Inputs:
-;   - D = Tile X position (0-31)
-;   - E = Tile Y position (0-31)
+;   - D = Tile Y position (0-31)
+;   - E = Tile X position (0-31)
 ; Outputs:
 ;   - HL = Index in BG map corresponding to tile coordinates
 ; ======================================================================
@@ -539,14 +541,13 @@ GetMapIndexFromTileXY:
 	push bc
 
 	ld h,0
-	ld l,e    ; hl = tile Y
+	ld l,d    ; hl = tile Y
 	add hl,hl ; hl = tile Y * 2
 	add hl,hl ; hl = tile Y * 4
 	add hl,hl ; hl = tile Y * 8
 	add hl,hl ; hl = tile Y * 16
 	add hl,hl ; hl = tile Y * 32
 	
-	ld e,d
 	ld d,0
 	add hl,de               ; hl = (tile Y * 32) + tile X
 
