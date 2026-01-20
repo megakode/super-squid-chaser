@@ -212,8 +212,9 @@ TileAnimationFindByTileMapIndex:
 TileAnimationAdd:
 
 	push bc
-    
+    push de
     push hl ; save hl (points to memory location to animate)
+	push hl
 
 	ld c,b ; save play mode in C
 
@@ -264,6 +265,8 @@ TileAnimationAdd:
     inc hl
     ld [hl], d ; set tile address (high byte) in animation entry
 
+	pop hl ; restore original hl (points to memory location to animate)
+	pop de
 	pop bc
 
 	ret 
