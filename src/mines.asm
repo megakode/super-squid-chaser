@@ -289,9 +289,77 @@ MinesUpdate:
 
 MineExplode:   
     ; TODO implement this.
-    ; - remove mine tile from BG map
-    ; - create explosion animation at mine location
     ; - deal damage to player if within explosion radius
+    push bc
+    ld b,0
+
+    ld hl,MineY
+    add hl,bc
+    ld d, [hl]
+    ld hl,MineX
+    add hl,bc
+    ld e, [hl]
+
+    
+    ; Explode a 5x5 area centered on the mine
+    
+    ; calculate starting position (top-left of 5x5 area)
+    dec e
+    dec e
+    dec d
+    dec d
+
+    ; store row starting positions
+    ld c, e
+
+    REPT 5
+        ld e,c
+        REPT 5
+            call MineExplodeAtXY ; in: d=tile y, e=tile x
+            inc e
+        ENDR
+
+        inc d
+    ENDR
+
+    
+    pop bc
+
+    ret 
+
+MineExplodeAtXY:
+
+    ; in: d = tile y, e = tile x
+    push de
+
+    ; bounds check 
+    ld a,e
+    cp 32
+    jr nc, .out_of_bounds
+    ; ld a,d
+    ; cp 32
+    ; jr nc, .out_of_bounds
+
+    ; wrap to 0-31
+    ld a,d
+    and 31
+    ld d,a
+    ld a,e
+    and 31
+    ld e,a
+
+    call GetMapIndexFromTileXY ; input: D=y, E=x,  Returns hl = tile map index
+
+    ; - create explosion animation at mine location
+
+    ld b,2 ; play_once
+    ld de,TileAnimExplosion
+    call TileAnimationAdd ; input: b=play mode, de=pointer to sprite definition
+
+    .out_of_bounds:
+
+    pop de
+
     ret 
 
 

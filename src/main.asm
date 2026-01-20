@@ -155,6 +155,7 @@ db AlienOffset1, 4, 10, 0  ; Alien 1
 SprDef_Exhaust:
 db 1, 5, 10, 0
 
+export TileAnimExplosion
 TileAnimExplosion:
 db ExplosionTilesOffset, ExplosionTilesCount, 10, 0
 
