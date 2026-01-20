@@ -62,12 +62,14 @@ SECTION "Game variables", WRAM0
 ; Player 
 export PlayerX
 export PlayerY
+export PlayerHealth
 PlayerX: db
 PlayerY: db
 PlayerThrustX: db
 PlayerThrustY: db
 PlayerVelocityX: db
 PlayerVelocityY: db
+PlayerHealth: db
 
 ; Shots / Rocks collision tracking
 CurrentShotTileX: db
@@ -209,8 +211,8 @@ EntryPoint:
 	; Show window status bar
 	call ShowStatusBar
 	; Set initial status bar values
-	ld hl,StatusBarMovementValue
-	ld [hl], DEFAULT_MOVEMENT_VALUE ; initial movement value
+	ld hl,StatusBarHealthValue
+	ld [hl], DEFAULT_HEALTH_VALUE ; initial health value
 	ld hl,StatusBarAmmoValue
 	ld [hl], DEFAULT_AMMO_VALUE ; initial ammo value
 	ld hl,StatusBarGemValue
@@ -244,6 +246,9 @@ EntryPoint:
 	ld [hl],a
 	ld hl,PlayerVelocityY
 	ld [hl],a
+	
+	ld hl,PlayerHealth
+	ld [hl], DEFAULT_HEALTH_VALUE
 
 	ld a,80 ; Y position
 	ld [PlayerY], a
@@ -317,16 +322,22 @@ EntryPoint:
 	; call UpdateEnemies
 	call DrawEnemies ; Drawn to shadow OAM, so can be done when VRAM is locked
 	call DrawShots ; Drawn to shadow OAM
-	;call StatusBarUpdate
+
+
+	ld hl,PlayerHealth
+	ld a,[hl]
+	ld hl,StatusBarHealthValue
+	ld [hl],a
+	call StatusBarUpdate
 	call ColisionDetectionShotsRocks 
 
 	; -----------------------
 	call WaitVBlank
 	; -----------------------
 	
-	ld e,1 ; offset in status bar
-	ld a,1
-	call StatusBarSetNumber
+	; ld e,1 ; offset in status bar
+	; ld a,1
+	; call StatusBarSetNumber
 
 	call DrawDirtyRowsToBGMap
 
@@ -338,9 +349,9 @@ EntryPoint:
 	; This is just for testing - remove later
 	; Try to show 0 in the status bar. 
 	; If 1 is visible, it means we have exceeded VBlank time and VRAM is locked.
-	ld e,1 ; offset in status bar
-	ld a,0
-	call StatusBarSetNumber
+	; ld e,1 ; offset in status bar
+	; ld a,0
+	; call StatusBarSetNumber
 
 	jr  .game_loop
 

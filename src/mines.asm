@@ -288,9 +288,11 @@ MinesUpdate:
 ; ==========================================
 
 MineExplode:   
-    ; TODO implement this.
-    ; - deal damage to player if within explosion radius
+
+    ; TODO: deal damage to player if within explosion radius
+
     push bc
+    push de
     ld b,0
 
     ld hl,MineY
@@ -321,15 +323,15 @@ MineExplode:
 
         inc d
     ENDR
-
     
+    pop de
     pop bc
 
     ret 
 
+; in: d = tile y, e = tile x
 MineExplodeAtXY:
 
-    ; in: d = tile y, e = tile x
     push de
 
     ; bounds check 
@@ -346,7 +348,20 @@ MineExplodeAtXY:
     ld d,a
     ld a,e
     and 31
-    ld e,a
+    ld e,a 
+
+    ; Check if Player is on this tile - if yes, deal damage
+    ld a,[PlayerTileX]
+    cp e
+    jr nz, .player_not_hit
+    ld a,[PlayerTileY]
+    cp d
+    jr nz, .player_not_hit
+
+    ; Player hit - deal damageh
+    call PlayerTakeExplosionDamage
+
+.player_not_hit:
 
     call GetMapIndexFromTileXY ; input: D=y, E=x,  Returns hl = tile map index
 
@@ -418,3 +433,19 @@ MineRemove:
     pop hl
     pop bc
     ret
+
+; =================================================
+; PlayerTakeExplosionDamage
+; =================================================
+; Deals damage to the player from an explosion
+; =================================================
+export PlayerTakeExplosionDamage
+PlayerTakeExplosionDamage:
+    ; For now, just reduce player health by a fixed amount
+    ld hl,PlayerHealth
+    ld a,[hl]
+    sub 5 ; fixed damage amount
+    ld [hl], a
+
+
+    ret 

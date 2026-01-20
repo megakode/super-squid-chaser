@@ -2,11 +2,11 @@ INCLUDE "hardware.inc"
 
 SECTION "Status bar variables", WRAM0
 
-export StatusBarMovementValue
+export StatusBarHealthValue
 export StatusBarAmmoValue
 export StatusBarGemValue
 
-StatusBarMovementValue: db 
+StatusBarHealthValue: db 
 StatusBarAmmoValue: db 
 StatusBarGemValue: db
 
@@ -86,7 +86,7 @@ StatusBarUpdate:
     
     ; Update Movement Value
     
-	ld a,[StatusBarMovementValue]
+	ld a,[StatusBarHealthValue]
 	ld e,1 ; offset in status bar
 	call StatusBarSetNumber
 
