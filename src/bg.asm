@@ -55,6 +55,9 @@ SetBGTileByXY:
 	push hl
 	push bc
 
+	ld b,0
+	ld c,d
+
 	ld h,0
 	ld l,d
 	add hl, hl ; hl = row index * 2
@@ -63,9 +66,11 @@ SetBGTileByXY:
 	add hl, hl ; hl = row index * 16
 	add hl, hl ; hl = row index * 32
 	
-	ld b,0
-	ld c,d ; bc = row
-	ld d,0 ; de = offset into shadow map
+	ld d,0
+	add hl,de               ; hl = (row index * 32) + column index
+	ld d,h
+	ld e,l
+
 	ld hl, ShadowTileMap ; start of BG map
 	add hl, de ; hl = address of tile in BG map
 	
@@ -209,6 +214,7 @@ DrawDirtyRowsToBGMap:
 ; ======================================================================
 GenerateRockRow:
 
+	push af
 	push bc
 	push de
 	push hl
@@ -277,6 +283,7 @@ GenerateRockRow:
 	pop hl
 	pop de
 	pop bc
+	pop af
 
 	ret
 

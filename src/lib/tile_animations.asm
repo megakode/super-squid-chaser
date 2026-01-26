@@ -233,7 +233,7 @@ TileAnimationAdd:
 	; 3 current frame,
 	; 4 number of total frames
 	; 5 tile data index ; index of the first tile in the animation sequence
-	; 6 tile address (low byte), (index of the GB OAM sprite to animate)
+	; 6 tile address (low byte), (index of the tile to animate. Note: the base address is stored separately and added laTER)
 	; 7 tile address (high byte)
 	
 	inc hl     ; hl = &animation.remaining_delay
@@ -289,35 +289,12 @@ TileAnimationsUpdate:
 	ld a, [hl]                  ; Get state byte of current entry
 	ld b,a 						; save state in B
 	
-	cp 0					    ; IS the current animation inactive?
+	cp 0					    ; Is the current animation inactive?
 	jr z, .skipCurrentAnimation ; If yes: skip it
 
 	; Active animation - process it
 
-	; get current delay
-	; decrement current remaining delay
-	; compare to zero
-	; if not zero: skip to next animation
-	; set current remaining delay to delay between frames
-	; get current frame
-	; increment frame
-	; compare to total frames
-	; if less than total frames: {
-	;    increment current frame 
-	; } else {
-	;    if play_looped: {
-	;        set current frame to 0
-	;    } else if play_once: {
-	;        set state to inactive
-	;    } else if play_and_remove: {
-	;        hide sprite
-	;        set state to inactive
-	;    }
-	; }
-	; calculate new tile number: tile data index + current frame
-	; update tile number in Shadow OAM
-
-	inc hl; skip 1 bytes ahead to current remaining delay
+	inc hl						; skip 1 bytes ahead to current remaining delay
 	ld a, [hl]                  ; Get current delay
 	dec a                       ; Decrease delay
 	ld [hl], a                  ; Store updated delay
@@ -325,6 +302,7 @@ TileAnimationsUpdate:
 	jr nz, .skipCurrentAnimationSub1 ; If not, skip to next animation (skip 3 bytes back to state)
 
 	; delay has reached zero - set it to delay between frames
+
 	inc hl                      ; skip 1 byte ahead to delay between frames
 	ld a, [hl]                  ; Get delay between frames
 	dec hl                      ; skip back to current delay
@@ -333,7 +311,6 @@ TileAnimationsUpdate:
 
 	inc hl ; 
 	inc hl ; point to current_frame
-	;ld CurrentFramePtr, hl
 
 	ld a, [hl]                  ; Get current frame
 	inc a                       ; Increase current frame
@@ -357,6 +334,8 @@ TileAnimationsUpdate:
 	add hl, de                ; rewind hl back to beginning of current animation entry
 	ld a, AnimationStateInactive
 	ld [hl], a                ; set state to inactive (rewind hl to state byte)
+	ld de,3
+	add hl,de ; point to current_frame (as .currentFrameWasUpdated assumes hl points to current_frame)
 	jr .currentFrameWasUpdated
 	
 .rewindToFrameZero:
@@ -370,7 +349,7 @@ TileAnimationsUpdate:
 	ld [hl], a                  ; Store updated current frame
 	
 .currentFrameWasUpdated
-
+								; assumptions at this point: 
                                 ; hl = pointer to current_frame
 	                            ; a = current frame
 	inc hl                      ; point to tile data index
@@ -381,6 +360,7 @@ TileAnimationsUpdate:
 	
 	; Now a is the new tile index number to set in the tile map.
 	; Next, get the tile address to update
+	; BUG!!!!! Somehow these ends up pointing to location TileAnimations +3 and +4 instead of +6/+7
 	inc hl                      ; point to tile address (low byte)
 	ld e, [hl]                  ; e = tile address (low byte)
 	inc hl                      ; point to tile address (high byte)

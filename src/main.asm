@@ -160,7 +160,7 @@ db 1, 5, 10, 0
 export TileAnimExplosion
 TileAnimExplosion:
 db ExplosionTilesOffset, ExplosionTilesCount, 10, 0
-
+println "ExplosionTilesCount: 0x{x:ExplosionTilesCount}"
 export MineAnim
 MineAnim:
 db MineTilesOffset, MineTilesCount, 10, 0
@@ -301,8 +301,8 @@ EntryPoint:
 	; call TileAnimationAdd
 
 	; add test mine
-	ld d,0
-	ld e,0
+	ld d,10
+	ld e,10
 	call MineAdd
 	
 
@@ -395,7 +395,27 @@ UpdateScrolling:
 	srl a
 	srl a
 	srl a		 ; divide by 8 to get tile row of upper visible area
+
+	; A = tile row just outside the top of the visible screen (0-31)
 	call GenerateRockRow
+	
+	ld b,a ; save row number in B for mine placement
+
+	; generate new mines occasionally
+	call GetPseudoRandomByte
+	and `111111             ; limit to 0-31 tile indices
+	; compare A with 10 and jump if less than 10
+	cp 10
+	jr nc, .dont_set_mine ; if the random number is less the 10, use tile number A
+
+	;call GetPseudoRandomByte
+	and `11111             ; limit to 0-31 tile indices
+	ld e,a                 ; E = mine X tile position
+	ld d,b
+
+	call MineAdd
+
+.dont_set_mine:
 
 	ret
 
