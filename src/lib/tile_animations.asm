@@ -336,6 +336,7 @@ TileAnimationsUpdate:
 	ld [hl], a                ; set state to inactive (rewind hl to state byte)
 	ld de,3
 	add hl,de ; point to current_frame (as .currentFrameWasUpdated assumes hl points to current_frame)
+	ld a,[hl]                  ; get current frame (as .currentFrameWasUpdated assumes a=currentFrame)
 	jr .currentFrameWasUpdated
 	
 .rewindToFrameZero:
@@ -424,7 +425,7 @@ TileAnimationsUpdate:
 	dec c                       ; decrease loop counter
 	ld a, c 
 	cp 0                        ; have we checked all entries (counted down to zero)?
-	jr nz, .nextAnimationLoop  ; if not, continue searching
+	jp nz, .nextAnimationLoop  ; if not, continue searching
 	
 	ld hl,0 ; no free sprites available. Return 0
 

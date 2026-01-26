@@ -294,8 +294,8 @@ EntryPoint:
 	; de = pointer to source animation definition (4 bytes)
 	; hl = address of memory location to animate
 
-	; ld b,1
-	; ld de, MineAnim
+	; ld b,2
+	; ld de, TileAnimExplosion
 	; ld hl,0 ; x=0,y=0 
 
 	; call TileAnimationAdd
