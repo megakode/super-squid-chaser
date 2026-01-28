@@ -174,7 +174,38 @@ MinesUpdate:
     cp 0
     jr z, .next_mine ; Skip inactive mines
 
+    ; Check if out of bounds, if yes, remove mine
+
+    ld a,[rSCY]
+    ld d,a         ; D = SCY
+
+    ld hl,MineY
+    add hl,bc
+    ld a, [hl]    ; A = mine_y
+    sla a
+    sla a
+    sla a
+    
+    ; A = mine_y
+    ; D = SCY c
+    ; a = mine_y*8 - rscy
+
+    sub a, d
+    srl a
+    srl a
+    srl a
+
+    ; A is now the row in the visible window where the mine is located (0-18)
+
+    cp 18
+    jr nz, .decrement_timer
+
+    call MineRemove
+    jr .next_mine
+
     ; If triggered, decrement countdown timer
+
+.decrement_timer:
 
     ld hl,MineTriggered
     add hl,bc
@@ -386,7 +417,7 @@ MineExplodeAtXY:
 ; - disables it in the mine list
 ; - removes its tile from the BG map
 ; - stop any ongoing tile animation
-;
+; - decrease mine count
 ; Inputs:
 ;   C = mine index to remove
 ; =================================================

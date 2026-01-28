@@ -469,6 +469,8 @@ ClearScreen:
 export GetMapAddressFromSpriteCoordinates
 GetMapAddressFromSpriteCoordinates:
 
+	push de
+
 	ld a,[rSCY]
 	add a, e                 ; E = spr Y position + scroll Y
 	sub a,16				 ; adjust for margin
@@ -500,6 +502,8 @@ GetMapAddressFromSpriteCoordinates:
 	srl e
 	srl e                    ; e = Sprite X in tiles
 	add hl,de               ; hl = $9800 + (tile Y * 32) + tile X
+
+	pop de
 
 	ret
 
@@ -546,6 +550,7 @@ export GetMapIndexFromTileXY
 GetMapIndexFromTileXY:
 
 	push bc
+	push de
 
 	ld h,0
 	ld l,d    ; hl = tile Y
@@ -558,6 +563,7 @@ GetMapIndexFromTileXY:
 	ld d,0
 	add hl,de               ; hl = (tile Y * 32) + tile X
 
+	pop de
 	pop bc
 
 	ret
