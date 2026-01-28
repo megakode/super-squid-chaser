@@ -200,13 +200,13 @@ EntryPoint:
 	call MinesInit
 
 	
-	call ClearScreen
+	call ClearMap
 	call GenerateBackgroundMap
 	call GenerateRockMap
 	
 	ld a,31 ; generate row 31 (bottom row)
 	call GenerateRockRow
-	
+
 
 	; Show window status bar
 	call ShowStatusBar
@@ -218,12 +218,9 @@ EntryPoint:
 	ld hl,StatusBarGemValue
 	ld [hl], DEFAULT_GEM_VALUE ; initial gem value
 
-	;call StatusBarUpdate
+	call DrawMapToScreen
 
-	; Setup LCD screen
-	
-	ld a, LCDCF_ON | LCDCF_BGON | LCDCF_OBJON | LCDCF_WINON | LCDCF_WIN9C00 | LCDCF_BG9800 | LCDCF_PRIOFF
-    ld [rLCDC], a
+	call StatusBarUpdate
 
 	; Setup default palettes
 	
@@ -265,6 +262,8 @@ EntryPoint:
 
 	ld a,AlignShipDelay
 	ld [AlignShipTrigger], a
+
+
 	
 	; move DMA subroutine to HRAM
 	call SetupDMACopy
@@ -304,6 +303,13 @@ EntryPoint:
 	ld d,10
 	ld e,10
 	call MineAdd
+
+	
+		; Setup LCD screen
+	ld a, LCDCF_ON | LCDCF_BGON | LCDCF_OBJON | LCDCF_WINON | LCDCF_WIN9C00 | LCDCF_BG9800 | LCDCF_PRIOFF
+    ld [rLCDC], a
+
+	call WaitVBlank
 	
 
 .game_loop:
@@ -339,7 +345,7 @@ EntryPoint:
 	; ld a,1
 	; call StatusBarSetNumber
 
-	call DrawDirtyRowsToBGMap
+	call DrawDirtyRowsToScreen
 
 	; call the DMA subroutine we copied to HRAM, which then copies the shadow OAM data to video memory
 	ld  a, HIGH(ShadowOAMData)

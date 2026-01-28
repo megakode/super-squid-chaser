@@ -33,7 +33,7 @@ SECTION "BG Functions", ROM0
 export ClearRockRow
 export GenerateRockRow
 export GenerateRockMap
-export ClearScreen
+export ClearMap
 
 export GenerateBackgroundMap
 export GenerateBackgroundRow
@@ -139,11 +139,37 @@ ClearRockRow:
 	ret
 
 ; ======================================================================
+; Draw entire shadow tile map to screen tile map
+;
+; Must be called during VBlank
+;
+; ======================================================================
+export DrawMapToScreen
+DrawMapToScreen:
+	ld bc,0
+	ld hl,ShadowTileMap
+	ld de, $9800
+.next_tile
+	ld a,[hli]
+	ld [de], a
+	inc de
+	inc bc
+	; compare bc with 1024 "32*32"
+	ld a,b
+	cp 0x04
+	jr nz, .next_tile
+	ld a,c
+	cp 0x00
+	jr nz, .next_tile
+
+	ret
+
+; ======================================================================
 ; Draw Dirty Rows to BG Map
 ; Must be called during VBlank
 ; ======================================================================
-export DrawDirtyRowsToBGMap
-DrawDirtyRowsToBGMap:
+export DrawDirtyRowsToScreen
+DrawDirtyRowsToScreen:
 
 	ld bc,0
 
@@ -420,17 +446,17 @@ GenerateBackgroundMap:
 	ret
 
 ; ======================================================================
-; Clear Screen
+; Clear Map
 ; ======================================================================
 ;
-; Set all BG map tiles from $9800 to $9C00 to 0
+; Set all shadow map tiles from to 0
 ;
 ; Inputs: None
 ; Outputs: None
 ;
 ; ======================================================================
 
-ClearScreen:
+ClearMap:
 
 	push hl
 	push bc
