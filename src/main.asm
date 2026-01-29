@@ -341,6 +341,10 @@ EntryPoint:
 	call UpdatePlayerMovement
 	call TileAnimationsUpdate
 	call MinesUpdate
+
+	call CheckPlayerEnemyCollision
+	call SpawnEnemyIfNeeded
+
 	; call UpdateEnemies
 	call DrawEnemies ; Drawn to shadow OAM, so can be done when VRAM is locked
 	call DrawShots ; Drawn to shadow OAM
@@ -543,8 +547,6 @@ ColisionDetectionShotsRocks:
 
 
 	ret
-
-
 
 ; --------------------------------
 ; Update player movement

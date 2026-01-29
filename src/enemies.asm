@@ -47,6 +47,101 @@ EnemiesInit:
     call ResetEnemies
     ret
 
+; ==========================================
+; Check collission between player and enemies
+; Assumes PlayerX and PlayerY contain player position
+; ==========================================
+export CheckPlayerEnemyCollision
+CheckPlayerEnemyCollision:
+
+    ld b,0 ; enemy index
+    ld c,0xff
+
+.next_enemy_check:
+
+    inc c
+    ld a,c
+    cp MAX_ENEMIES
+    jr z, .done ; If all enemies checked, exit
+
+    ld hl,EnemyIsActive
+    add hl, bc
+    ld a, [hl]         ; Check if current enemy is active..
+    cp 1
+    jr nz, .next_enemy_check ; If not, skip
+
+    ; Get enemy position
+    ld hl,EnemyY
+    add hl, bc
+    ld d,[hl] ; D = enemy Y
+
+    ld hl,PlayerY
+    ld a,[hl] ; A = player Y
+    add 3 ; adjust to hitbox center
+
+    cp d
+    jr c, .next_enemy_check ; if player Y < enemy Y, skip
+
+    ld e,a ; E = player Y
+    ld a,d ; A = enemy Y
+    add 7 ; enemy height
+    cp e
+    jr c, .next_enemy_check
+
+    ; we hit in Y axis, check X axis
+
+    ld hl,EnemyX
+    add hl, bc
+    ld d,[hl] ; enemy X
+
+    ld hl,PlayerX
+    ld a,[hl] ; A = player X
+    add 3 ; adjust to hitbox center
+
+    cp d
+    jr c, .next_enemy_check ; if player X < enemy X, skip
+
+    ld e,a ; E = player X
+    ld a,d ; A = enemy X
+    add 7 ; enemy width
+    cp e
+    jr c, .next_enemy_check
+
+    ; HIT !!!
+
+    ; input: C - enemy index
+    call KillEnemy
+    ld hl,PlayerScore
+    inc [hl] ; increase player score
+
+
+.done
+
+    ret
+
+; ==========================================
+; Kill enemy
+; Input:
+; C - enemy index to kill
+; ==========================================
+
+export KillEnemy
+KillEnemy:
+
+    push hl
+    push bc
+
+    ld hl,EnemyIsActive
+    ld b,0
+    add hl, bc
+    ld [hl], 0 ; Mark enemy as inactive
+    ld hl,EnemyCount
+    dec [hl] ; Decrement enemy count
+
+    pop bc
+    pop hl
+
+    ret
 
 ; ==========================================
 ; Reset Enemies
@@ -66,6 +161,39 @@ ResetEnemies:
 
     ld hl, EnemyCount
     ld [hl], 0  ; Set enemy count to 0
+
+    ret
+
+; ==========================================
+; Spawn enemy if needed
+; ==========================================
+export SpawnEnemyIfNeeded
+SpawnEnemyIfNeeded:
+
+    ld hl,EnemyCount
+    ld a,[hl]
+    cp MAX_ENEMIES
+    jr z, .done ; If max enemies reached, skip spawn
+
+    call GetPseudoRandomByte
+	and `111             ; limit to 0-31 tile indices
+	; compare A with 10 and jump if less than 10
+	cp `111
+    jr nz, .done ; 1 in 16 chance to spawn enemy
+
+    call GetPseudoRandomByte
+    cp 160 ; limit to screen width
+    jr c, .dont_subtract
+    sub 160
+.dont_subtract
+    ld d,a ; D = X position for enemy
+    
+
+    ld e, 50  ; Y position (for example purposes)
+
+    call AddEnemy
+
+.done
 
     ret
 

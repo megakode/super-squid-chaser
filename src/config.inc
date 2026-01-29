@@ -8,7 +8,7 @@ export PLAYER_DEACCELERATION
 
 ; *** Enemies *************************
 
-def MAX_ENEMIES = 10
+def MAX_ENEMIES = 1
 def ENEMIES_SPEED = 2
 export MAX_ENEMIES
 export ENEMIES_SPEED
