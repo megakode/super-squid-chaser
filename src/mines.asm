@@ -550,7 +550,7 @@ PlayerTakeExplosionDamage:
     ; For now, just reduce player health by a fixed amount
     ld hl,PlayerHealth
     ld a,[hl]
-    sub 5 ; fixed damage amount
+    sub PLAYER_EXPLOSION_DAMAGE ; fixed damage amount
     ld [hl], a
 
 

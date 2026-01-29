@@ -69,7 +69,12 @@ PlayerThrustX: db
 PlayerThrustY: db
 PlayerVelocityX: db
 PlayerVelocityY: db
+export  PlayerShotsLeft
+export PlayerScore
+export PlayerShotsLeft
 PlayerHealth: db
+PlayerShotsLeft: db
+PlayerScore: dw
 
 ; Shots / Rocks collision tracking
 CurrentShotTileX: db
@@ -210,13 +215,19 @@ EntryPoint:
 
 	; Show window status bar
 	call ShowStatusBar
+
 	; Set initial status bar values
-	ld hl,StatusBarHealthValue
-	ld [hl], DEFAULT_HEALTH_VALUE ; initial health value
-	ld hl,StatusBarAmmoValue
-	ld [hl], DEFAULT_AMMO_VALUE ; initial ammo value
-	ld hl,StatusBarGemValue
-	ld [hl], DEFAULT_GEM_VALUE ; initial gem value
+	ld a, DEFAULT_HEALTH_VALUE ; initial health value
+	ld hl,PlayerHealth
+	ld [hl], a
+
+	ld a, DEFAULT_AMMO_VALUE ; initial ammo value
+	ld hl,PlayerShotsLeft
+	ld [hl], a
+	
+	ld a, DEFAULT_SCORE_VALUE ; initial score value
+	ld hl,PlayerScore
+	ld [hl], a
 
 	call DrawMapToScreen
 
@@ -519,7 +530,7 @@ ColisionDetectionShotsRocks:
 	ld a,0
 	ld [hl], a
 
-	ld hl,PlayerShotsCount
+	ld hl,PlayerShotsActiveCount
 	dec [hl]
 	
 .skip_shot:
@@ -892,6 +903,9 @@ ButtonWasPressed:
 .a_was_pressed:
 	
 	; Fire a shot
+
+	; Check if any ammo left
+
 	ld hl,PlayerX
 	ld d,[hl]
 	ld hl,PlayerY

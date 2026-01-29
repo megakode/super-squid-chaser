@@ -2,10 +2,10 @@ INCLUDE "hardware.inc"
 
 SECTION "Shots variable", WRAM0
 
-def MAX_PLAYER_SHOTS = 5
+def MAX_PLAYER_SHOTS = 1
 def PLAYER_SHOT_SPEED = 2
 
-PlayerShotsCount:  ds 1                 ; Number of active player shots
+PlayerShotsActiveCount:  ds 1                 ; Number of active player shots
 PlayerShotsX:      ds MAX_PLAYER_SHOTS  ; X positions of player shots
 PlayerShotsY:      ds MAX_PLAYER_SHOTS  ; Y positions of player shots
 PlayerShotsActive: ds MAX_PLAYER_SHOTS  ; Active flags for player shots
@@ -13,7 +13,7 @@ PlayerShotsActive: ds MAX_PLAYER_SHOTS  ; Active flags for player shots
 PlayerShotsSpritesPtr: ds 2 ; Pointer to the sprites used in shadow OAM
 
 export MAX_PLAYER_SHOTS
-export PlayerShotsCount
+export PlayerShotsActiveCount
 export PlayerShotsX
 export PlayerShotsY
 export PlayerShotsActive
@@ -72,7 +72,7 @@ ResetShots:
     dec c
     jr nz, .reset_loop
 
-    ld hl, PlayerShotsCount
+    ld hl, PlayerShotsActiveCount
     ld [hl], 0  ; Set shot count to 0
 
     ret
@@ -93,10 +93,18 @@ ResetShots:
 export AddShot
 AddShot:
 
+    ; Check if enough ammo
+    ld hl,PlayerShotsLeft
+    ld a,[hl]
+    cp 0
+    jr z, .no_slot_available ; No ammo, cannot add shot
+
+    dec [hl] ; Decrement ammo
+
     push bc
     push hl
 
-    ld hl,PlayerShotsCount
+    ld hl,PlayerShotsActiveCount
     ld a,[hl]
     cp MAX_PLAYER_SHOTS
     jr z, .no_slot_available
@@ -132,7 +140,7 @@ AddShot:
     add hl, bc
     ld [hl], e              ; Set Y position
 
-    ld hl,PlayerShotsCount
+    ld hl,PlayerShotsActiveCount
     inc [hl]               ; Increment shot count
     ld a,1                 ; Indicate shot added successfully
 
@@ -152,7 +160,7 @@ UpdateShots:
     push bc
     push de
 
-    ld hl, PlayerShotsCount
+    ld hl, PlayerShotsActiveCount
     ld a, [hl]
     cp 0
     jr z, .no_shots ; If no active shots, skip update
@@ -184,7 +192,7 @@ UpdateShots:
     ld hl,PlayerShotsActive
     add hl, bc
     ld [hl], 0 ; Mark shot as inactive
-    ld hl,PlayerShotsCount
+    ld hl,PlayerShotsActiveCount
     dec [hl] ; Decrement shot count
     jp .next_shot
     

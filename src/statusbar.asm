@@ -4,18 +4,20 @@ SECTION "Status bar variables", WRAM0
 
 export StatusBarHealthValue
 export StatusBarAmmoValue
-export StatusBarGemValue
+export StatusBarScoreValue
 
 StatusBarHealthValue: db 
 StatusBarAmmoValue: db 
-StatusBarGemValue: db
+StatusBarScoreValue: db
+
+def TileIndexWithFirstNumber = 0x11 ; Tile index for '0' character
 
 SECTION "Status bar section", ROM0
 
 
 export StatusbarTileMap
 StatusbarTileMap:
-	db 0xb,0xe,0xe,0xc,0xe,0xe,0xd,0xe,0xe,0xe,0xe,0xe,0xe,0xe,0xe,0xe,0xe,0xe,0xe,0xf
+	db 0xb,0xf,0xf,0xc,0xf,0xf,0xd,0xf,0xf,0xf,0xf,0xf,0xf,0xf,0xf,0xf,0xf,0xe,0xf,0x10
 
 export ShowStatusBar
 ShowStatusBar:
@@ -53,7 +55,7 @@ StatusBarSetNumber:
     ; B = tens digit, C = ones digit
     
     ld a,b
-    add 0x10 ; Convert digit to tile numbers (assuming '0' tile is 0x10)
+    add TileIndexWithFirstNumber ; Convert digit to tile numbers (assuming '0' tile is 0x10)
 
     ; Set tile STATUSBAR_X + offset to tens digit (a)
     ld d,0
@@ -64,7 +66,7 @@ StatusBarSetNumber:
     inc hl
     
     ld a,c
-    add 0x10 ; Convert digit to tile numbers (assuming '0' tile is 0x10)
+    add TileIndexWithFirstNumber ; Convert digit to tile numbers (assuming '0' tile is 0x10)
     
     ld [hl], a ; Write to VRAM
 
@@ -77,7 +79,6 @@ StatusBarSetNumber:
 ; =================================================
 ; StatusBarUpdate
 ; =================================================
-
 ; Input: None
 ; Updates the status bar display based on current values
 
@@ -86,20 +87,20 @@ StatusBarUpdate:
     
     ; Update Movement Value
     
-	ld a,[StatusBarHealthValue]
+	ld a,[PlayerHealth]
 	ld e,1 ; offset in status bar
 	call StatusBarSetNumber
 
     ; update Ammo Value
 
-	ld a,[StatusBarAmmoValue]
+	ld a,[PlayerShotsLeft]
 	ld e,4 ; offset in status bar
 	call StatusBarSetNumber
 
     ; update Gem Value
 
-	ld a,[StatusBarGemValue]
-	ld e,7 ; offset in status bar
+	ld a,[PlayerScore]
+	ld e,15 ; offset in status bar
 	call StatusBarSetNumber
 
     ret
