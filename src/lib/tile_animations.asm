@@ -13,7 +13,7 @@ export AnimationStatePlayOnce
 export AnimationStatePlayAndRemove
 
 def SizeOfTileAnimation	   equ 8 ; size of each sprite animation entry in bytes
-def MAX_TILE_ANIMATIONS       equ 40 ; maximum number of simultaneous tile animations
+def MAX_TILE_ANIMATIONS       equ 50 ; maximum number of simultaneous tile animations
 
 TileAnimations:
 

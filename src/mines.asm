@@ -135,11 +135,11 @@ MineAdd:
 export MinesUpdate
 MinesUpdate:
 
-    ld a,[PlayerX]
-	add 3 ; adjust for ship hotspot
-	ld d,a
 	ld a,[PlayerY]
     add 3 ; adjust for ship hotspot
+	ld d,a
+    ld a,[PlayerX]
+	add 3 ; adjust for ship hotspot
 	ld e,a
 
     ; in: 
@@ -150,13 +150,27 @@ MinesUpdate:
     ; e = Player tile Y
     call ConvertSpriteXYToTileXY
     
-    ld a,d
-    ld [PlayerTileX], a
     ld a,e
+    ld [PlayerTileX], a
+    ld a,d
     ld [PlayerTileY], a
+
+    ; Check if any mines are within trigger radius of player
+    ; input d = player tile y, e = player tile x
+    ; output: carry set if mine found, c = mine index
+    call FindMineWithinRadius
+
+    jr nc, .no_mine_close_to_player
+
+    ; Mine found within radius, trigger it
+    ; input: c = mine index
+    call MineTrigger
+
+.no_mine_close_to_player:
     
-    ; Loop through all mines and:
     ld bc,0x00ff ; so that the first 'inc c' sets bc to 0
+    
+    ; Loop through all mines and update timers:
 
 .next_mine:
 
@@ -211,7 +225,7 @@ MinesUpdate:
     add hl,bc
     ld a, [hl]
     cp 1
-    jr nz, .check_if_within_player_radius ; Not triggered, skip timer decrement
+    jr nz, .next_mine ; Not triggered, skip timer decrement
     
     ; Decrement timer. If timer reaches 0, do explosion
 
@@ -223,65 +237,28 @@ MinesUpdate:
     cp 0
     jr nz, .next_mine ; Timer not zero yet, skip explosion
 
-    ; Handle explosion
-    ld hl,MineIsActive
-    add hl,bc
-    ld [hl], 0 ; Set mine as inactive
-    
-    ld hl,MineCount
-    dec [hl] ; Decrement mine count
-
     ; input: c = mine index
     call MineRemove
     call MineExplode
     jr .next_mine
 
-.check_if_within_player_radius:
-
-
-    ; Check if player is within trigger radius
-    ; if yes and not already triggered: set triggered flag
-
-    ; check if PlayerTileX/Y is within MINE_TRIGGER_RADIUS of MineX/Y
-    ld hl,MineX
-    add hl,bc
-    ld d, [hl]
-    ld a,[PlayerTileX]
-    ld e,a
-
-    ; D = Minx  
-    ; E = PlayerTileX
+.done:     
     
-    ; compute abs(d - e)
+    ret
 
-    ld a,d
-    sub e
-    call ABS
+; ==========================================
+; MineTrigger
+; Sets a mine as triggered, and starts its animation
+; Inputs:
+;  C - mine index
+; ==========================================
 
-    ; a = abs(MineX - PlayerTileX)
+MineTrigger:
 
-    cp MINE_TRIGGER_RADIUS
-    jr c, .check_y ; Within radius
-    jr .next_mine ; Outside radius
-
-.check_y:
-
-    ld hl,MineY
-    add hl,bc
-    ld d, [hl]
-    ld a,[PlayerTileY]
-    ld e,a
-
-    ; D = MineY  
-    ; E = PlayerTileY
-    ld a, d
-    sub e
-    call ABS
-
-    ; a = abs(MineY - PlayerTileY)
-
-    cp MINE_TRIGGER_RADIUS
-    jr nc, .next_mine ; outside radius
+    push af
+    push hl
+    push de
+    push bc
 
     ; Set mine as triggered
     ld hl,MineTriggered
@@ -289,25 +266,109 @@ MinesUpdate:
     ld [hl], 1
 
 
-	; input: d = mine tile y, e = mine tile x
-    ; output: hl = address in BG map
     ld hl,MineY
     add hl,bc
     ld d, [hl]
     ld hl,MineX
     add hl,bc
     ld e, [hl]
+	; input: d = mine tile y, e = mine tile x
+    ; output: hl = address in BG map
     call GetMapIndexFromTileXY
     
     ld b,1
 	ld de, MineAnim
-	call TileAnimationAdd
+    ; input: b=play mode, de=pointer to sprite definition, hl=tile map index
+	call TileAnimationAdd 
     ld b,0
 
-    jp .next_mine
+    pop bc
+    pop de
+    pop hl
+    pop af
 
-.done:     
+    ret
+
+
+; ==========================================
+; FindMineWithinRadius
+; Checks if a mine is within a certain radius of a point
+; Inputs:
+;  D - Y position to check
+;  E - X position to check
+; Outputs:
+;  Carry set if within radius, reset if not
+;  C = index of the mine
+; ==========================================
+
+FindMineWithinRadius:
+
+    push hl
+
+    ld bc,0x00ff
     
+.next_mine:
+
+    ; loop check
+    inc c
+    ld a,c
+    cp MAX_MINES
+    jp z, .done_no_mines_within_radius
+
+    ; TODO: check it active and not triggered already
+
+    ld hl,MineIsActive
+    add hl,bc
+    ld a, [hl]
+    cp 0
+    jr z, .next_mine ; Inactive mine, skip
+
+    ld hl,MineTriggered
+    add hl,bc
+    ld a, [hl]
+    cp 1
+    jr z, .next_mine ; Already triggered, skip
+
+    ; Check Y distance
+
+    ld hl,MineY
+    add hl,bc
+    ld a, [hl]   ; A = MineY
+    sub d        ; compute abs(a - d)
+    call ABS
+
+    ; a = abs(MineY - CheckY)
+
+    cp MINE_TRIGGER_RADIUS
+    jr c, .check_x ; Within radius
+    jr .next_mine ; Outside radius
+
+.check_x:
+
+    ld hl,MineX
+    add hl,bc
+    ld a, [hl] ; A = MineX
+    sub e      ; compute abs(a - e)
+    call ABS
+
+    ; a = abs(MineX - CheckX)
+
+    cp MINE_TRIGGER_RADIUS
+    jr nc, .next_mine ; outside radius
+
+    ; Mine found within radius
+    ; C = mine index
+    scf ; set carry to indicate found
+    jr .done
+
+.done_no_mines_within_radius:     
+    
+    scf 
+	ccf ; clear carry to indicate nothing found
+
+.done:
+
+    pop hl
     ret
 
 
@@ -324,6 +385,7 @@ MineExplode:
 
     push bc
     push de
+    push hl
     ld b,0
 
     ld hl,MineY
@@ -332,6 +394,15 @@ MineExplode:
     ld hl,MineX
     add hl,bc
     ld e, [hl]
+
+    ; TODO: check if other mines are within explosion radius and chain explode them
+.find_other_mines:
+    call FindMineWithinRadius
+    jr nc, .did_not_find_mines
+    call MineRemove
+    call MineExplode
+    jp .find_other_mines
+.did_not_find_mines
 
     
     ; Explode a 5x5 area centered on the mine
@@ -348,20 +419,21 @@ MineExplode:
     REPT 5
         ld e,c
         REPT 5
-            call MineExplodeAtXY ; in: d=tile y, e=tile x
+            call MineExplosionAtXY ; in: d=tile y, e=tile x
             inc e
         ENDR
 
         inc d
     ENDR
     
+    pop hl
     pop de
     pop bc
 
     ret 
 
 ; in: d = tile y, e = tile x
-MineExplodeAtXY:
+MineExplosionAtXY:
 
     push de
 
@@ -426,6 +498,9 @@ MineRemove:
     push bc
     push hl
     push af
+
+    ld hl,MineCount
+    dec [hl] ; Decrement mine count
     
     ; Disable mine
     ld b,0

@@ -304,7 +304,11 @@ EntryPoint:
 	ld e,10
 	call MineAdd
 
-	
+	ld d,12
+	ld e,10
+	call MineAdd
+
+
 		; Setup LCD screen
 	ld a, LCDCF_ON | LCDCF_BGON | LCDCF_OBJON | LCDCF_WINON | LCDCF_WIN9C00 | LCDCF_BG9800 | LCDCF_PRIOFF
     ld [rLCDC], a
@@ -315,6 +319,7 @@ EntryPoint:
 .game_loop:
 
 	call UpdateScrolling ; Generates new rock rows as needed
+
 	call SpriteAnimationsUpdate
 	call UpdateShots
 

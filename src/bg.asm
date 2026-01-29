@@ -537,8 +537,8 @@ GetMapAddressFromSpriteCoordinates:
 ; ======================================================================
 ; Convert Sprite X,Y to Tile X,Y
 ; inputs:
-;   - D = Sprite X position in pixels
-;   - E = Sprite Y position in pixels
+;   - D = Sprite Y position in pixels
+;   - E = Sprite X position in pixels
 ; outputs:
 ;   - D = Tile Y position
 ;   - E = Tile X position
@@ -547,19 +547,20 @@ export ConvertSpriteXYToTileXY
 ConvertSpriteXYToTileXY:
 
 	ld a,[rSCY]
-	add a, e                 ; E = spr Y position + scroll Y
+	add a, d                 ; D = spr Y position + scroll Y
 	sub a,16				 ; adjust for margin
+	ld d,a
+	srl d
+	srl d
+	srl d                    ; D = sprite Y position in tiles
+
+
+	ld a, e ; e = Sprite X
+	sub 8
 	ld e,a
 	srl e
 	srl e
-	srl e                    ; E = sprite Y position in tiles
-
-
-	ld a, d ; e = Sprite X
-	sub 8
-	srl d
-	srl d
-	srl d                    ; d = Sprite X in tiles
+	srl e                    ; e = Sprite X in tiles
 
 	ret
 
