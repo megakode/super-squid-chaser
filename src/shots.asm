@@ -93,6 +93,9 @@ ResetShots:
 export AddShot
 AddShot:
 
+    push bc
+    push hl
+    
     ; Check if enough ammo
     ld hl,PlayerShotsLeft
     ld a,[hl]
@@ -101,8 +104,6 @@ AddShot:
 
     dec [hl] ; Decrement ammo
 
-    push bc
-    push hl
 
     ld hl,PlayerShotsActiveCount
     ld a,[hl]
