@@ -111,8 +111,17 @@ CheckPlayerEnemyCollision:
 
     ; input: C - enemy index
     call KillEnemy
+    
+    ; Increase score. 
+    ; Score is stored as little-endian word at PlayerScore
     ld hl,PlayerScore
-    inc [hl] ; increase player score
+    ld e, [hl]
+    inc hl
+    ld d, [hl]
+    inc de
+    ld [hl], d
+    dec hl
+    ld [hl], e
 
 
 .done
@@ -175,21 +184,32 @@ SpawnEnemyIfNeeded:
     cp MAX_ENEMIES
     jr z, .done ; If max enemies reached, skip spawn
 
-    call GetPseudoRandomByte
-	and `111             ; limit to 0-31 tile indices
-	; compare A with 10 and jump if less than 10
-	cp `111
-    jr nz, .done ; 1 in 16 chance to spawn enemy
-
-    call GetPseudoRandomByte
-    cp 160 ; limit to screen width
-    jr c, .dont_subtract
-    sub 160
-.dont_subtract
-    ld d,a ; D = X position for enemy
+    ; Generate X position
     
+    call GetPseudoRandomByte
+	and `11111  
+	cp `11111
+    jr nz, .done ; 1 in 32 chance to spawn enemy
 
-    ld e, 50  ; Y position (for example purposes)
+    ; Generate X position
+
+    call GetPseudoRandomByte
+    cp 160-8 ; check it outside 160 (right edge)
+    jr c, .dont_adjust_x
+    sub 152
+    .dont_adjust_x
+    add 8  ; make sure we dont spawn outside the left edge, where the visible part starts at 8
+    ld d,a    ; D = X position
+
+    ; Generate Y position
+
+    call GetPseudoRandomByte
+    cp 144-16 ; check it outside 144 (bottom edge)
+    jr c, .dont_adjust_y
+    sub (144-16)
+    .dont_adjust_y
+    add 16  ; make sure we dont spawn outside the left edge, where the visible part starts at 8
+    ld e,a    ; E = Y position
 
     call AddEnemy
 
