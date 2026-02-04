@@ -261,6 +261,9 @@ state_handler_title:
 
 	call ShowTitleScreen ; blocking call
 
+	call WaitVBlank
+	call ScreenOff
+
 	; Currently, immediately switch to game state
 	ld a, STATE_GAME_LOAD
 	ld [current_state], a
@@ -274,7 +277,7 @@ state_handler_title:
 state_handler_game_load:
 	
 	; turn off lcd
-	call ScreenOff
+	; call ScreenOff
 
 	; Setup default palettes (matches the Gameboy palette in Aseprite)
 	
@@ -305,9 +308,12 @@ state_handler_game_load:
 
 	call InitRandomSeed
 
-	call ScreenOn
+	; Show window status bar
+	call ShowStatusBar
 
-	call WaitVBlank
+	; call ScreenOn
+
+	; call WaitVBlank
 
 	ld a, STATE_GAME
 	ld [current_state], a
@@ -320,9 +326,6 @@ state_handler_game_load:
 state_handler_game:
 
 	call MinesInit
-
-	; Show window status bar
-	call ShowStatusBar
 
 	; Set initial status bar values
 	ld a, DEFAULT_HEALTH_VALUE ; initial health value
@@ -401,7 +404,7 @@ state_handler_game:
 	ld a,31 ; generate row 31 (bottom row)
 	call GenerateRockRow
 
-	call ScreenOff
+	; call ScreenOff
 
 	ld a,0
 	ld [rSCY], a
@@ -518,6 +521,8 @@ state_handler_gameover_loop:
 	call TileAnimationsUpdate
 	call InputHandlerUpdate
 
+	call WaitVBlank
+
 	ld a,[button_a_was_pressed_flag]
 	cp 1
 	jr nz , .skip_restart_game
@@ -526,11 +531,9 @@ state_handler_gameover_loop:
 	ld a, STATE_GAME
 	ld [current_state], a
 
-.skip_restart_game:
+	call ScreenOff
 
-	; -----------------------
-	call WaitVBlank
-	; -----------------------
+.skip_restart_game:
 	
 	call DrawDirtyRowsToScreen
 

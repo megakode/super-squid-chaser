@@ -122,6 +122,4 @@ ShowTitleScreen:
     ld a,0
     ldh	[rIE],a
 
-    ; ei ; re-enable interrupts for joypad input in the next screen
-
     ret
