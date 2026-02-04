@@ -86,6 +86,10 @@ MineAdd:
     cp MAX_MINES
     jr nz, .find_slot
 
+    ; No available slot, return 0
+    ld a,0
+    jr .done
+
 .slot_found:
     ; Mark mine as active
     ld [hl], 1

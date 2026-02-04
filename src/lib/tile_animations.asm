@@ -43,7 +43,7 @@ EXPORT TileAnimationsInit
 EXPORT TileAnimationFindByState
 EXPORT TileAnimationAdd
 EXPORT TileAnimationsUpdate
-
+export TileAnimationsResetAll
 ; -----------------------------
 ; Initialize Tile Animations
 ; Set all TileAnimation states to zero
@@ -52,8 +52,6 @@ EXPORT TileAnimationsUpdate
 ; -----------------------------
 TileAnimationsInit:
 
-
-	push bc
 	push af
 
     ld a, l
@@ -61,9 +59,24 @@ TileAnimationsInit:
     ld a,h
     ld [TileMapAddress + 1], a
 
+	call TileAnimationsResetAll
+	
+	pop af
+
+	ret
+
+; ----------------------------------
+; Reset all Tile Animations to inactive
+; ----------------------------------
+TileAnimationsResetAll:
+
+	push hl
+	push bc
+	push af
+
 	ld hl, TileAnimations
 	ld bc, MAX_TILE_ANIMATIONS * SizeOfTileAnimation ; 40 sprite animations, 8 bytes each
-	.clearTileAnimLoop
+.clearTileAnimLoop
 	xor a
 	ld [hli], a
 	dec bc
@@ -73,6 +86,7 @@ TileAnimationsInit:
 
 	pop af
 	pop bc
+	pop hl
 
 	ret
 

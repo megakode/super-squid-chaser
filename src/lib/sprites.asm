@@ -151,6 +151,37 @@ SpriteAnimationFindByState:
 
 	ret
 
+; -----------------------------
+; Clear all sprite animations
+
+export SpriteAnimationsClearAll
+SpriteAnimationsClearAll:
+
+	push bc
+	push af
+	push de
+
+	ld hl, SpriteAnimations
+	ld c, 40 ; total number of entries
+	ld de,SizeOfSpriteAnimation ; size of each sprite animation entry
+
+	.spriteLoop
+	ld a,0
+	ld [hl], a                 ; Set state byte of current entry
+	add hl, de                 ; increase pointer to next sprite entry
+	dec c                      ; decrease loop counter
+	ld a, c 
+	cp 0                       ; have we checked all entries (counted down to zero)?
+	jr nz, .spriteLoop ; if not, continue searching
+
+	.done
+
+	pop de
+	pop af
+	pop bc
+
+	ret
+
 ; ======================================================================
 ; Add Sprite Animation
 ; ======================================================================

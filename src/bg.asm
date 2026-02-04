@@ -27,6 +27,7 @@ ShadowTileMapDirtyRows:
 
 SECTION "BG variables", WRAM0
 
+rock_generator_mask:  ds 1 ; mask for rock generation randomness
 
 SECTION "BG Functions", ROM0
 
@@ -37,6 +38,43 @@ export ClearMap
 
 export GenerateBackgroundMap
 export GenerateBackgroundRow
+
+export ScreenOff
+export ScreenOn
+export WaitVBlank
+
+; ======================================================================
+; Wait for VBlank
+; ======================================================================
+
+WaitVBlank:
+
+		ld a, [rLY]
+		cp 144
+		jr c, WaitVBlank
+		ret
+
+
+; ======================================================================
+; ScreenOff
+; ======================================================================
+ScreenOff:
+	; turn off LCD
+	call WaitVBlank
+	xor a ; ld a, 0
+	ld [rLCDC], a
+
+	ret
+
+; ======================================================================
+; ScreenOn
+; ======================================================================
+ScreenOn:
+	; configure and turn on LCD
+	ld a, LCDCF_ON | LCDCF_BGON | LCDCF_OBJON | LCDCF_WINON | LCDCF_WIN9C00 | LCDCF_BG9800 | LCDCF_PRIOFF
+    ld [rLCDC], a
+
+	ret
 
 ; ======================================================================
 ; Set BG Tile by X,Y
@@ -470,7 +508,7 @@ ClearMap:
 	dec bc
 	ld a, b
 	or c
-	jr z, .clearLoop
+	jr nz, .clearLoop
 
 	pop af
 	pop bc

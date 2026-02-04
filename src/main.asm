@@ -40,24 +40,26 @@ SECTION "OAM Data", WRAM0, ALIGN[8] ; align to 256 bytes
 	
 	EXPORT ShadowOAMData	
 	ShadowOAMData:
+	union
 		SprPlayerY:   db
 		SprPlayerX:   db
 		SprPlayerTileNum:   db
 		SprPlayerAttributes:db
 		SprShots:  ds 4 * 5 ; reserve space for 5 shots (4 bytes each)
 		SprEnemies:  ds 4 * MAX_ENEMIES ; reserve space for x enemies (4 bytes each)
-		SprExplosions:
-		ds 4 * 24 ; reserve space for 40 sprites (4 bytes each)
+	nextu	
+		dummyspr: ds 4 * 1 ; reserve space for the still visible player sprite
+		SprGameOver: ds 4 * 24 ; reserve space for 24 sprites (4 bytes each)
+		SprPlayAgain: ds 4 * 16 ; reserve space for 16 sprites (4 bytes each)
+	nextu
+		ds 4 * 40
+	endu
 	ShadowOAMDataEnd:	
 
 def SprEnemiesIndex = (SprEnemies - ShadowOAMData) / 4
 
 
 SECTION "Game variables", WRAM0
-
-; Misc
-
-
 
 ; Player 
 export PlayerX
@@ -89,6 +91,23 @@ def AlignShipDelay = 20
 AlignShipTrigger: db       ; used to align the ship to a column after moving it after a delay
 DoAlignShip: db ; boolean flag to indicate if we should align ship to column
 
+
+ShowGameOverDelayCounter: db ; used to count down before showing "Game over" sign
+; ==============================================================================
+; CONSTANTS
+; ==============================================================================
+
+def STATE_TITLE         EQU 0
+def STATE_GAME_LOAD     EQU 5
+def STATE_GAME          EQU 1
+def STATE_GAME_LOOP     EQU 2
+def STATE_GAMEOVER      EQU 3
+def STATE_GAMEOVER_LOOP EQU 4
+
+current_state: ds 1
+
+; ==============================================================================
+
 SECTION "Entry point", ROM0
 	
 	Tiles:    
@@ -115,6 +134,12 @@ SECTION "Entry point", ROM0
 		INCBIN "assets/alien1.2bpp"
 	SpriteDataAlien3:
 		INCBIN "assets/alien3.2bpp"
+	SpriteDataShipDie:
+		INCBIN "assets/ship_die.2bpp"
+	SpriteDataGameOver:
+		INCBIN "assets/gameover.2bpp"
+	SpriteDataPlayAgain:
+		INCBIN "assets/play_again.2bpp"
 	SpritesEnd:
 
 ;def StatusbarTileOffset = (TilesStatusbar - Tiles) / 16
@@ -123,6 +148,10 @@ SECTION "Entry point", ROM0
 def AlienOffset1 = (SpriteDataAlien1 - Sprites) / 16
 ;def AlienOffset2 = (SpriteDataAlien2 - Sprites) / 16
 def AlienOffset3 = (SpriteDataAlien3 - Sprites) / 16
+
+def SpriteOffsetGameOver = (SpriteDataGameOver - Sprites) / 16
+def SprPlayAgainOffset = (SpriteDataPlayAgain - Sprites) / 16
+def SpriteOffsetShipDie = (SpriteDataShipDie - Sprites) / 16
 
 def ExplosionTilesOffset = (ExplosionTiles - Tiles) / 16
 def ExplosionTilesCount = (ExplosionTilesEnd - ExplosionTiles) / 16
@@ -162,6 +191,9 @@ db AlienOffset1, 4, 10, 0  ; Alien 1
 SprDef_Exhaust:
 db 1, 5, 10, 0
 
+SprDef_ShipDie:
+db SpriteOffsetShipDie, 7, 10, 0 ; Ship dying animation
+
 export TileAnimExplosion
 TileAnimExplosion:
 db ExplosionTilesOffset, ExplosionTilesCount, 10, 0
@@ -172,13 +204,82 @@ db MineTilesOffset, MineTilesCount, 10, 0
 
 EntryPoint:
 	
-	; turn off lcd
-	call WaitVBlank
-	xor a ; ld a, 0
-	ld [rLCDC], a
-
 	ld hl,ShadowTileMap
 	call TileAnimationsInit
+
+	call SpriteAnimationsInit
+
+	call InputHandlerInit
+
+	; Setup default palettes (matches the Gameboy palette in Aseprite)
+	
+	ld a, `11100100
+	ld [rOBP0], a
+	ld [rOBP1], a
+	ld [rBGP], a
+
+	; move DMA subroutine to HRAM
+	call SetupDMACopy
+	
+	; Initialize the state to the Title Screen
+    ld a, STATE_TITLE
+    ld [current_state], a
+
+; =====================================================================================
+; Main loop
+; =====================================================================================
+
+MainLoop:
+
+    ld a, [current_state]
+
+    cp STATE_TITLE
+    jp z, state_handler_title
+
+	cp STATE_GAME_LOAD
+	jp z, state_handler_game_load
+
+	cp STATE_GAME
+	jp z, state_handler_game
+
+	CP STATE_GAME_LOOP
+	jp z, state_handler_game_loop
+
+    cp STATE_GAMEOVER
+    jp z, state_handler_gameover
+
+	cp STATE_GAMEOVER_LOOP
+    jp z, state_handler_gameover_loop
+
+    ; Safety: If state is unknown, force reset to title
+    ld a, STATE_TITLE
+    ld [current_state], a
+    jp MainLoop
+
+; =====================================================================================
+; State Handlers
+; =====================================================================================
+
+; ------------------------------------------------------------------------------------
+; State Handler: Title Screen
+; ------------------------------------------------------------------------------------
+
+state_handler_title:
+
+	; Currently, immediately switch to game state
+	ld a, STATE_GAME_LOAD
+	ld [current_state], a
+	jp MainLoop
+
+
+; ------------------------------------------------------------------------------------
+; State Handler: Game load resources
+; ------------------------------------------------------------------------------------
+
+state_handler_game_load:
+	
+	; turn off lcd
+	call ScreenOff
 
 	; Copy BG tile data to VRAM $9000
 
@@ -202,16 +303,21 @@ EntryPoint:
 
 	call InitRandomSeed
 
+	call ScreenOn
+
+	call WaitVBlank
+
+	ld a, STATE_GAME
+	ld [current_state], a
+	jp MainLoop
+
+; ------------------------------------------------------------------------------------
+; State Handler: Game
+; ------------------------------------------------------------------------------------
+
+state_handler_game:
+
 	call MinesInit
-
-	
-	call ClearMap
-	call GenerateBackgroundMap
-	call GenerateRockMap
-	
-	ld a,31 ; generate row 31 (bottom row)
-	call GenerateRockRow
-
 
 	; Show window status bar
 	call ShowStatusBar
@@ -229,19 +335,14 @@ EntryPoint:
 	ld hl,PlayerScore
 	ld [hl], a
 
-	call DrawMapToScreen
-
 	call StatusBarUpdate
 
-	; Setup default palettes
-	
-	ld a, `11100100
-	ld [rOBP0], a
-	ld [rOBP1], a
-	ld [rBGP], a
-	
 	; Clear existing sprites
 	call SpritesClear
+
+	call SpriteAnimationsClearAll
+
+	call TileAnimationsResetAll
 	
 	; Setup a sprite
 
@@ -258,9 +359,9 @@ EntryPoint:
 	ld hl,PlayerHealth
 	ld [hl], DEFAULT_HEALTH_VALUE
 
-	ld a,80 ; Y position
+	ld a,128 ; Y position
 	ld [PlayerY], a
-	ld a,40 ; X position
+	ld a,80 ; X position
 	ld [PlayerX], a
 	ld a,0  ; Tile number
 	ld [SprPlayerTileNum], a
@@ -274,77 +375,64 @@ EntryPoint:
 	ld a,AlignShipDelay
 	ld [AlignShipTrigger], a
 
-
-	
-	; move DMA subroutine to HRAM
-	call SetupDMACopy
-	
-	call SpriteAnimationsInit
-	call InputHandlerInit
-	
 	ld hl,SprShots
 	call ShotsInit
 
 	ld hl,SprEnemies
 	call EnemiesInit
+
 	; add an enemy for testing
 	ld d, 120 ; X position
 	ld e, 60  ; Y position
 	call AddEnemy
 
-
+	; TODO: add animation as enemies are spanwed instead of here
 	ld de, SprDef_Alien1
 	ld a,SprEnemiesIndex
 	ld b, AnimationStatePlayLooped
 	call SpriteAnimationAdd
 
-	; add test explosion
-
-	; b = Play mode (1 = play_looped, 2 = play_once)
-	; de = pointer to source animation definition (4 bytes)
-	; hl = address of memory location to animate
-
-	; ld b,2
-	; ld de, TileAnimExplosion
-	; ld hl,0 ; x=0,y=0 
-
-	; call TileAnimationAdd
-
-	; add test mine
-	ld d,10
-	ld e,10
-	call MineAdd
-
-	ld d,12
-	ld e,10
-	call MineAdd
-
-
-		; Setup LCD screen
-	ld a, LCDCF_ON | LCDCF_BGON | LCDCF_OBJON | LCDCF_WINON | LCDCF_WIN9C00 | LCDCF_BG9800 | LCDCF_PRIOFF
-    ld [rLCDC], a
-
-	call WaitVBlank
+	call ClearMap
+	call GenerateBackgroundMap
+	; call GenerateRockMap
 	
+	ld a,31 ; generate row 31 (bottom row)
+	call GenerateRockRow
 
-.game_loop:
+	call ScreenOff
+
+	ld a,0
+	ld [rSCY], a
+
+	call DrawMapToScreen
+
+	call ScreenOn
+
+	; call WaitVBlank
+
+	; Currently, immediately switch to game state
+	ld a, STATE_GAME_LOOP
+	ld [current_state], a
+	jp MainLoop
+
+
+; ------------------------------------------------------------------------------------
+; State Handler: Game
+; ------------------------------------------------------------------------------------
+
+state_handler_game_loop:
 
 	call UpdateScrolling ; Generates new rock rows as needed
-
+	call GenerateRocksAndMinesIfNeeded
 	call SpriteAnimationsUpdate
 	call UpdateShots
-
-	; update game logic
-
 	call InputHandlerUpdate
-
+	call HandleGameStateInput
 	call UpdatePlayerMovement
 	call TileAnimationsUpdate
 	call MinesUpdate
-
 	call CheckPlayerEnemyCollision
 	call SpawnEnemyIfNeeded
-
 	; call UpdateEnemies
 	call DrawEnemies ; Drawn to shadow OAM, so can be done when VRAM is locked
 	call DrawShots ; Drawn to shadow OAM
@@ -357,33 +445,103 @@ EntryPoint:
 	call StatusBarUpdate
 	call ColisionDetectionShotsRocks 
 
+	; Check for game over condition
+	ld hl,PlayerHealth
+	ld a,[hl]
+	cp 0
+	jr nz, .not_game_over
+
+	; Switch to game over state
+	ld a, STATE_GAMEOVER
+	ld [current_state], a
+
+.not_game_over:
+
 	; -----------------------
 	call WaitVBlank
 	; -----------------------
 	
-	; ld e,1 ; offset in status bar
-	; ld a,1
-	; call StatusBarSetNumber
-
 	call DrawDirtyRowsToScreen
 
 	; call the DMA subroutine we copied to HRAM, which then copies the shadow OAM data to video memory
 	ld  a, HIGH(ShadowOAMData)
-	call ExecuteDMACopy
+	call ExecuteDMACopy	
+
+	jp  MainLoop
+
+
+; ------------------------------------------------------------------------------------
+; State Handler: Game Over
+; ------------------------------------------------------------------------------------
+
+state_handler_gameover:
+
+	; Wait a moment before showing "Game Over" sign
+	; To allow ship die animation to be seen and not conflict with game over sign
+	ld a,100
+	ld [ShowGameOverDelayCounter], a
+
+	ld de, SprDef_ShipDie
+	ld a,0 ; sprite index 0 = Player ship
+	ld b, AnimationStatePlayOnce
+	call SpriteAnimationAdd
+
+	ld a, STATE_GAMEOVER_LOOP
+	ld [current_state], a
+
+	jp MainLoop
+
+; ------------------------------------------------------------------------------------
+; State Handler: Game Over loop
+; ------------------------------------------------------------------------------------
+
+state_handler_gameover_loop:
+
+	ld a, [ShowGameOverDelayCounter]
+	cp 1
+	jp nz, .dont_show_game_over
+
+	call SpriteAnimationsClearAll
+	call ShowGameOver
+
+.dont_show_game_over:
+	cp 0
+	jr z, .skip_delay_decrement
+	dec a
+	ld [ShowGameOverDelayCounter], a
+.skip_delay_decrement:
+
+	call UpdateScrolling ; Generates new rock rows as needed
+	call SpriteAnimationsUpdate
+	call TileAnimationsUpdate
+	call InputHandlerUpdate
+
+	ld a,[button_a_was_pressed_flag]
+	cp 1
+	jr nz , .skip_restart_game
+
+	; Switch to game state
+	ld a, STATE_GAME
+	ld [current_state], a
+
+.skip_restart_game:
+
+	; -----------------------
+	call WaitVBlank
+	; -----------------------
 	
+	call DrawDirtyRowsToScreen
 
-	; This is just for testing - remove later
-	; Try to show 0 in the status bar. 
-	; If 1 is visible, it means we have exceeded VBlank time and VRAM is locked.
-	; ld e,1 ; offset in status bar
-	; ld a,0
-	; call StatusBarSetNumber
+	; call the DMA subroutine we copied to HRAM, which then copies the shadow OAM data to video memory
+	ld  a, HIGH(ShadowOAMData)
+	call ExecuteDMACopy	
 
-	jr  .game_loop
+	jp MainLoop
 
 ; ===============================================================
 ; Update Scrolling
 ; ===============================================================
+
 UpdateScrolling:
 
 	ld a,[ScrollTrigger]
@@ -403,13 +561,16 @@ UpdateScrolling:
 	dec a
 	ld [rSCY], a
 
+	ret
+
+GenerateRocksAndMinesIfNeeded:
 
 	; generate new line of rocks if needed
 
 	ld a, [GenerateNewRowTrigger]
 	inc a
 	ld [GenerateNewRowTrigger], a
-	cp 8         ; generate new row every 8 scrolls
+	cp (8*FRAMES_BETWEEN_SCROLL)         ; generate new row every 8 scrolls
 	ret c        ; return if not time yet
 
 	ld a,0
@@ -888,19 +1049,24 @@ RechargeAlignShipTrigger:
 ; Button was pressed event handler
 ; --------------------------------
 ; A = button identifier
-; --------------------------------]
+; --------------------------------
+
 export ButtonWasPressed
 ButtonWasPressed:
+	; Empty handler - but required by InputHandler
+	ret 
 
-	cp BUTTON_A
-	jr z,.a_was_pressed
-	cp BUTTON_B
-	jr z,.b_was_pressed
-	ret
+; --------------------------------
+; Handle input during game state
+; --------------------------------
 
-.b_was_pressed:
-	call UpdateScrolling
-	ret
+HandleGameStateInput:
+
+	ld a,[button_a_was_pressed_flag]
+	cp 1
+	jr z, .a_was_pressed
+
+	jr .done_handle_input
 
 .a_was_pressed:
 	
@@ -913,6 +1079,15 @@ ButtonWasPressed:
 	ld hl,PlayerY
 	ld e,[hl]
 	call AddShot
+
+	jr .done_handle_input
+
+.b_was_pressed:
+
+	; currently unused
+	jr .done_handle_input
+
+.done_handle_input:
 		
 	ret
 ; --------------------------------
@@ -992,31 +1167,82 @@ ButtonIsDown:
 	ld [SprPlayerY],a
 	ret
 
-; ======================================================================
-; play move animation
-; ======================================================================
-
-.PlayMoveAnimation:
-
-ld de, SprDef_Alien1
-ld a,0 ; sprite 0
-ld b, AnimationStatePlayOnce
-call SpriteAnimationAdd
-
-ret 
-
 
 ; ======================================================================
-; Wait for VBlank
+; Show Game Over sign
 ; ======================================================================
 
-WaitVBlank:
+ShowGameOver:
 
-		ld a, [rLY]
-		cp 144
-		jr c, WaitVBlank
-		ret
+	push bc
+	push de
+	push hl
 
+	ld hl,SprGameOver
+	ld d,SpriteOffsetGameOver
+	ld e,50 ; Y position
+	
+	; Memory layout for each sprite entry:
+	; y,x,tile number,attributes
+
+REPT 3
+	ld a,54 ; X position
+REPT 8
+	ld [hl], e ; y position
+	inc hl
+	ld [hl], a ; x position
+	inc hl
+	add 8
+	ld [hl],d ; tile number
+	inc hl
+	inc d
+	ld [hl],0 ; attributes
+	inc hl
+ENDR
+	ld b,a
+	ld a,e
+	add 8
+	ld e,a
+	ld a,b
+
+ENDR
+
+	pop hl
+	pop de
+	pop bc
+
+	ret
+
+HideGameOver:
+
+	push bc
+	push de
+	push hl
+
+	ld hl,SprGameOver
+	
+	; Memory layout for each sprite entry:
+	; y,x,tile number,attributes
+
+REPT 3
+REPT 8
+
+	ld [hl], 0 ; y position
+	inc hl
+
+	;ld [hl], a ; x position
+	inc hl
+
+	inc hl ; skip tile number
+	inc hl ; skip attributes
+ENDR
+ENDR
+
+	pop hl
+	pop de
+	pop bc
+
+	ret
 
 ; ======================================================================
 ; Memcopy
