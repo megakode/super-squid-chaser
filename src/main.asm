@@ -211,13 +211,6 @@ EntryPoint:
 
 	call InputHandlerInit
 
-	; Setup default palettes (matches the Gameboy palette in Aseprite)
-	
-	ld a, `11100100
-	ld [rOBP0], a
-	ld [rOBP1], a
-	ld [rBGP], a
-
 	; move DMA subroutine to HRAM
 	call SetupDMACopy
 	
@@ -266,6 +259,8 @@ MainLoop:
 
 state_handler_title:
 
+	call ShowTitleScreen ; blocking call
+
 	; Currently, immediately switch to game state
 	ld a, STATE_GAME_LOAD
 	ld [current_state], a
@@ -280,6 +275,13 @@ state_handler_game_load:
 	
 	; turn off lcd
 	call ScreenOff
+
+	; Setup default palettes (matches the Gameboy palette in Aseprite)
+	
+	ld a, `11100100
+	ld [rOBP0], a
+	ld [rOBP1], a
+	ld [rBGP], a
 
 	; Copy BG tile data to VRAM $9000
 
@@ -1243,26 +1245,6 @@ ENDR
 	pop bc
 
 	ret
-
-; ======================================================================
-; Memcopy
-; ======================================================================
-; Copy bytes from one area to another.
-; Uses registers: a,b,c,d,e,h,l
-; @param de: Source
-; @param hl: Destination
-; @param bc: Length
-
-Memcopy:
-
-	ld a, [de]
-    ld [hli], a
-    inc de
-    dec bc
-    ld a, b
-    or a, c
-    jp nz, Memcopy
-    ret
 
 ; Debug print the size of the sprite data
 
