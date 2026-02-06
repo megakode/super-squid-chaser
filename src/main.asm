@@ -45,6 +45,7 @@ SECTION "OAM Data", WRAM0, ALIGN[8] ; align to 256 bytes
 		SprPlayerX:   db
 		SprPlayerTileNum:   db
 		SprPlayerAttributes:db
+		SprPickup: ds 4 * 1 ; reserve space for 1 pickup sprite (4 bytes)
 		SprShots:  ds 4 * 5 ; reserve space for 5 shots (4 bytes each)
 		SprEnemies:  ds 4 * MAX_ENEMIES ; reserve space for x enemies (4 bytes each)
 	nextu	
@@ -56,7 +57,8 @@ SECTION "OAM Data", WRAM0, ALIGN[8] ; align to 256 bytes
 	endu
 	ShadowOAMDataEnd:	
 
-def SprEnemiesIndex = (SprEnemies - ShadowOAMData) / 4
+def SpriteIndexEnemies = (SprEnemies - ShadowOAMData) / 4
+def SpriteIndexPickup = (SprPickup - ShadowOAMData) / 4
 
 
 SECTION "Game variables", WRAM0
@@ -81,6 +83,9 @@ PlayerScore: dw
 ; Shots / Rocks collision tracking
 CurrentShotTileX: db
 CurrentShotTileY: db
+
+; Pickup spawn tracking
+PickupShown: db ; boolean flag to track if a pickup is currently shown on screen
 
 ; Scrolling
 ScrollTrigger: db
@@ -134,6 +139,8 @@ SECTION "Entry point", ROM0
 		INCBIN "assets/alien1.2bpp"
 	SpriteDataAlien3:
 		INCBIN "assets/alien3.2bpp"
+	SpriteDataBulletPickup:
+		INCBIN "assets/bullet_pickup.2bpp"
 	SpriteDataShipDie:
 		INCBIN "assets/ship_die.2bpp"
 	SpriteDataGameOver:
@@ -142,16 +149,14 @@ SECTION "Entry point", ROM0
 		INCBIN "assets/play_again.2bpp"
 	SpritesEnd:
 
-;def StatusbarTileOffset = (TilesStatusbar - Tiles) / 16
-;println "Statusbar tile offset in tiles: 0x{x:StatusbarTileOffset}"
 
-def AlienOffset1 = (SpriteDataAlien1 - Sprites) / 16
-;def AlienOffset2 = (SpriteDataAlien2 - Sprites) / 16
-def AlienOffset3 = (SpriteDataAlien3 - Sprites) / 16
+def SpriteDataIndexAlien = (SpriteDataAlien1 - Sprites) / 16
+def SpriteDataIndexBulletPickup = (SpriteDataBulletPickup - Sprites) / 16
+def SpriteDataIndexGameOver = (SpriteDataGameOver - Sprites) / 16
+def SpriteDataIndexPlayAgain = (SpriteDataPlayAgain - Sprites) / 16
+def SpriteDataIndexShipDie = (SpriteDataShipDie - Sprites) / 16
 
-def SpriteOffsetGameOver = (SpriteDataGameOver - Sprites) / 16
-def SprPlayAgainOffset = (SpriteDataPlayAgain - Sprites) / 16
-def SpriteOffsetShipDie = (SpriteDataShipDie - Sprites) / 16
+; Tiles
 
 def ExplosionTilesOffset = (ExplosionTiles - Tiles) / 16
 def ExplosionTilesCount = (ExplosionTilesEnd - ExplosionTiles) / 16
@@ -165,7 +170,7 @@ export RockTilesOffset
 def RockTilesOffset = (RockTiles - Tiles) / 16
 def RockTilesCount = (RockTilesEnd - RockTiles) / 16
 ; ----------------------------------------------
-; Sprite Definitions
+; Sprite animation Definitions
 ; ----------------------------------------------
 ; Each sprite definition consists of:
 ;
@@ -182,8 +187,11 @@ def RockTilesCount = (RockTilesEnd - RockTiles) / 16
 ; starts at after loading, and use that value here.
 ; ----------------------------------------------
 
+SprDef_BulletPickup:
+db SpriteDataIndexBulletPickup, 4, 5, 0  ; Bullet pickup sprite definition 
+
 SprDef_Alien1:
-db AlienOffset1, 4, 10, 0  ; Alien 1
+db SpriteDataIndexAlien, 4, 10, 0  ; Alien 1
 ;SprDef_Alien2:
 ;db AlienOffset2, 5, 10, 0  ; Alien 2
 ;SprDef_Alien3:
@@ -192,7 +200,7 @@ SprDef_Exhaust:
 db 1, 5, 10, 0
 
 SprDef_ShipDie:
-db SpriteOffsetShipDie, 7, 10, 0 ; Ship dying animation
+db SpriteDataIndexShipDie, 7, 10, 0 ; Ship dying animation
 
 export TileAnimExplosion
 TileAnimExplosion:
@@ -393,9 +401,11 @@ state_handler_game:
 
 	; TODO: add animation as enemies are spanwed instead of here
 	ld de, SprDef_Alien1
-	ld a,SprEnemiesIndex
+	ld a,SpriteIndexEnemies
 	ld b, AnimationStatePlayLooped
 	call SpriteAnimationAdd
+
+	call PickupInit ; NOTE: also starts pickup SpriteAnimation
 
 	call ClearMap
 	call GenerateBackgroundMap
@@ -438,6 +448,10 @@ state_handler_game_loop:
 	call MinesUpdate
 	call CheckPlayerEnemyCollision
 	call SpawnEnemyIfNeeded
+	call PickupUpdate
+
+	call PickupCollisionCheck
+
 	; call UpdateEnemies
 	call DrawEnemies ; Drawn to shadow OAM, so can be done when VRAM is locked
 	call DrawShots ; Drawn to shadow OAM
@@ -542,6 +556,162 @@ state_handler_gameover_loop:
 	call ExecuteDMACopy	
 
 	jp MainLoop
+
+; ===============================================================
+; Check if player collides with pickup
+; ===============================================================
+
+PickupCollisionCheck:
+
+	ld a,[PlayerX]
+	add 3
+	ld e,a
+	ld a,[PlayerY]
+	add 3
+	ld d,a
+	ld a,SpriteIndexPickup
+	call SpriteCollisionCheck
+
+	jp nc, .no_pickup_collision
+
+	; Increase shots?
+    ld a,[PlayerShotsLeft]
+	cp (99-PICKUP_AMMO_AMOUNT)
+	jr nc, .ammo_maxed_out
+	
+.add_ammo:
+			
+	add PICKUP_AMMO_AMOUNT
+	ld [PlayerShotsLeft], a
+	jp .hide_sprite
+
+.ammo_maxed_out:
+		
+	ld a,99
+	ld [PlayerShotsLeft], a
+	jp .hide_sprite
+		
+.hide_sprite:
+	; Hide pickup
+	ld a,0
+	ld [PickupShown], a
+	ld [SprPickup], a ; hide pickup sprite by setting Y position to 0
+	
+.no_pickup_collision:
+
+	ret
+
+; ===============================================================
+; Pickup init
+; 
+; - Hides the pickup sprite
+; - Starts a sprite animation for the pickup if one doesn't already exist
+; ===============================================================
+
+PickupInit:
+
+	; Is the pickup already animated?
+
+	; in: B = sprite index to find
+	; out: HL = ptr to sprite animation entry, or 0 if none found
+	ld b,SpriteIndexPickup
+	call SpriteAnimationFindBySpriteIndex
+	ld a,h
+	or l
+	jr nz, .animation_exists
+
+	; If not, start a sprite animation for the pickup
+
+	ld de, SprDef_BulletPickup
+	ld a,SpriteIndexPickup
+	ld b, AnimationStatePlayLooped
+	call SpriteAnimationAdd
+
+.animation_exists:
+
+	ld hl,SprPickup
+	ld a,0
+	ld [hl], a ; Y position
+	inc hl ; go to X position
+	inc hl ; go to tile number
+	ld a,SpriteDataIndexBulletPickup
+	ld [hl], a ; set tile number for pickup sprite
+
+	; hide the pickup sprite for now, until we need to show it when spawning a pickup
+	ld a,0
+	ld [SprPickup], a ; Y position
+
+	ld a,0
+	ld [PickupShown], a
+
+	ret
+
+; ================================================================
+; Update Pickup
+; ================================================================
+
+PickupUpdate:
+
+	ld a,[PickupShown]
+
+	cp 1
+	jr nz, .not_shown ; if not shown, check if we should spawn it.
+
+	; If pickup is shown:
+
+	; move it
+	ld hl, SprPickup
+	ld a, [hl] ; A = Y position
+	inc a ; move down by 1 pixel
+	ld [hl], a ; update Y position
+
+	cp 144+8 ; if Y position > 144, it's off screen 
+	jr c, .pickup_still_on_screen
+	ld a, 0
+	ld [PickupShown], a ; mark pickup as not shown
+	ld [SprPickup], a   ; hide pickup sprite
+	jp .done
+
+.pickup_still_on_screen:
+
+	; check collision with player
+
+
+	jp .done
+
+.not_shown:
+.spawn_check:
+
+	call GetPseudoRandomByte
+	cp 0
+	jr nz, .done ; 1 in 256 chance to spawn pickup each frame when there isn't one already
+
+	; Spawn pickup
+	call GetPseudoRandomByte
+	srl a
+	add 16
+	and `11111000
+
+	ld hl,SprPickup
+	inc hl ; X position
+	ld [hl], a ; set pickup X position
+	dec hl ; go back to Y position
+	ld a,0
+	ld [hl],a
+	ld hl,PickupShown
+	ld [hl], 1 ; mark pickup as shown
+
+
+.done:
+
+	ret
+
+; ================================================================
+; Hide pickup
+; ================================================================
+
+PickupHide:
+	ret
 
 ; ===============================================================
 ; Update Scrolling
@@ -1184,7 +1354,7 @@ ShowGameOver:
 	push hl
 
 	ld hl,SprGameOver
-	ld d,SpriteOffsetGameOver
+	ld d,SpriteDataIndexGameOver
 	ld e,50 ; Y position
 	
 	; Memory layout for each sprite entry:

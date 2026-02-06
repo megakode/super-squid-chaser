@@ -3,9 +3,6 @@ INCLUDE "config.inc"
 
 SECTION "Mines variable", WRAM0
 
-def MAX_MINES = 10
-def MINE_TRIGGER_RADIUS = 4
-
 MineCount:          ds 1         ; Number of active mines
 MineIsActive:       ds MAX_MINES ; Active flags for mines (1 = active, 0 = inactive)
 MineTriggered:      ds MAX_MINES ; Triggered flags for mines (1 = triggered, 0 = not)

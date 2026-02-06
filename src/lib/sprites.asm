@@ -88,6 +88,15 @@ SpriteAnimationFindBySpriteIndex:
 	ld hl, SpriteAnimations
 	ld c, 40                 ; total number of entries
 .findSpriteLoop
+	ld a, [hl]               ; Get state byte of current entry
+	cp 0                     ; Is this entry active?
+	jp nz,.entryIsActive
+
+	ld de,SizeOfSpriteAnimation ; size of each sprite animation entry
+	add hl, de               ; point to sprite index byte of next entry
+	jp .entryIsInactive
+
+.entryIsActive
 	ld de,6
 	add hl, de               ; point to sprite index byte
 	ld a, [hl]               ; Get sprite index byte of current entry
@@ -95,16 +104,20 @@ SpriteAnimationFindBySpriteIndex:
 	jr z, .foundIt           ; If yes: we are done!
 	inc hl
 	inc hl                   ; point to next entry
+.entryIsInactive
 	dec c
 	ld a, c
 	cp 0                     ; have we checked all entries (counted down to zero)?
 	jr nz, .findSpriteLoop   ; if not, continue searching
 	ld hl,0 ; no free sprites available. Return 0
+	jp .done
 
 .foundIt
 
 	ld de,-6
 	add hl, de                ; point back to the state byte of the found sprite animation
+
+.done
 
 	pop de
 	pop bc
@@ -431,6 +444,63 @@ SpriteAnimationsUpdate:
 	pop af
 
 	ret
+
+
+; ======================================================================
+; Sprite Check Collision
+; ======================================================================
+; Check collision between a sprite and a given position
+; Inputs:
+; A = spriteNum, D = yPos, E = xPos
+; Returns:
+; Carry = 1 if collision, 0 if no collision
+; ======================================================================
+export SpriteCollisionCheck
+SpriteCollisionCheck:
+
+
+    ; Get sprite position
+	ld hl,ShadowOAMData
+	sla a
+	sla a					  ; A = spriteNum * 4 (size of each OAM entry)
+	ld b,0
+	ld c,a
+	add hl, bc				  ; point to sprite entry in shadow OAM
+
+    ld a,[hl] ; D = sprite Y
+
+    cp d
+    jr nc, .no_hit ; if sprite Y < yPos
+
+    add 7 ; a = sprite bottom
+    cp d
+    jr c, .no_hit
+
+    ; we hit in Y axis, check X axis
+
+    inc hl
+    ld a,[hl] ; sprite X
+
+    cp e
+    jr nc, .no_hit ; if sprite X < Xpos
+
+    add 7 ; sprite width
+    cp e
+    jr c, .no_hit
+
+    ; HIT !!!
+
+	scf 
+	jp .done
+	
+.no_hit
+	
+	scf ; set carry
+	ccf ; invert (clear) carry to indicate nothing found
+
+.done
+
+    ret
 
 
 ; -----------------------------
