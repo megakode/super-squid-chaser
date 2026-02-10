@@ -147,19 +147,18 @@ ShowTitleScreen:
     di 
 
     ; Mute all channels to stop music/sound effects immediately
-    ld b,0
-    ld c,1
-    CALL hUGE_mute_channel
-    ld b,1
-    ld c,1
-    CALL hUGE_mute_channel
-    ld b,2
-    ld c,1
-    CALL hUGE_mute_channel
-    ld b,3
-    ld c,1
-    CALL hUGE_mute_channel
-    
+    ; ld b,0
+    ; ld c,1
+    ; CALL hUGE_mute_channel
+    ; ld b,1
+    ; ld c,1
+    ; CALL hUGE_mute_channel
+    ; ld b,2
+    ; ld c,1
+    ; CALL hUGE_mute_channel
+    ; ld b,3
+    ; ld c,1
+    ; CALL hUGE_mute_channel
 
     ld a,0
     ld [rSTAT], a ; disable LCD interrupts
