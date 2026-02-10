@@ -60,6 +60,18 @@ def TitleScreenTilesLen = TitleScreenTilesEnd - TitleScreenTiles
 export ShowTitleScreen
 ShowTitleScreen:
 
+    ; enable sound
+	; ld a, $80
+	; ld [rAUDENA], a
+	; ld a, $FF
+	; ld [rAUDTERM], a
+	; ld a, $77
+	; ld [rAUDVOL], a
+
+	; ld hl,song_title
+	; call hUGE_init
+
+
     call ScreenOff
 
     ; ld a, `11100100
@@ -134,10 +146,7 @@ ShowTitleScreen:
 
     di 
 
-    ; call WaitVBlank
-    ; ld a, LCDCF_ON | LCDCF_BGON | LCDCF_OBJOFF | LCDCF_WINOFF | LCDCF_BG9800 | LCDCF_BLK01
-    ; ld [rLCDC], a
-
+    ; Mute all channels to stop music/sound effects immediately
     ld b,0
     ld c,1
     CALL hUGE_mute_channel

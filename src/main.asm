@@ -267,19 +267,7 @@ MainLoop:
 
 state_handler_title:
 
-	; enable sound
-	ld a, $80
-	ld [rAUDENA], a
-	ld a, $FF
-	ld [rAUDTERM], a
-	ld a, $77
-	ld [rAUDVOL], a
-
-	ld hl,song_title
-	call hUGE_init
-
 	call ShowTitleScreen ; blocking call
-
 
 	call WaitVBlank
 	call ScreenOff
