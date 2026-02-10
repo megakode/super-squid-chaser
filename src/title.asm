@@ -1,5 +1,12 @@
 INCLUDE "hardware.inc"
 
+SECTION	"VBlank Handler",ROM0[$40]
+
+VBlankHandler::	; 40 cycles
+    call VBlank
+    reti
+
+
 SECTION	"HBlank Handler",ROM0[$48]
 HBlankHandler::	; 40 cycles
 	push	af		    ; 4
@@ -28,6 +35,20 @@ HBlankHandler::	; 40 cycles
 	reti	
 
 SECTION "Title screen assets", ROM0
+
+VBlank:
+    push	af		    ; 4
+    push bc            ; 4
+    push de		    ; 4
+    push hl
+
+    call hUGE_dosound
+
+    pop	hl		; 3
+    pop	de		    ; 3
+    pop	bc		    ; 3
+    pop	af		; 3
+    ret
 
 
 TitleScreenTiles:
@@ -86,11 +107,11 @@ ShowTitleScreen:
 
 
     ; Setup LCD STAT register for HBlank interrupts
-    ld a,STATF_MODE00 
+    ld a,STATF_MODE00
     ld [rSTAT], a
 
 	; enable the interrupts
-	ld	a,IEF_STAT
+	ld	a,IEF_STAT | IEF_VBLANK
 	ldh	[rIE],a
 	xor	a
 	ei
@@ -104,6 +125,7 @@ ShowTitleScreen:
 .loop:
 
     call WaitVBlank
+    ; call hUGE_dosound
     call InputHandlerUpdate
 
     ld a,[button_start_was_pressed_flag]
@@ -115,6 +137,20 @@ ShowTitleScreen:
     ; call WaitVBlank
     ; ld a, LCDCF_ON | LCDCF_BGON | LCDCF_OBJOFF | LCDCF_WINOFF | LCDCF_BG9800 | LCDCF_BLK01
     ; ld [rLCDC], a
+
+    ld b,0
+    ld c,1
+    CALL hUGE_mute_channel
+    ld b,1
+    ld c,1
+    CALL hUGE_mute_channel
+    ld b,2
+    ld c,1
+    CALL hUGE_mute_channel
+    ld b,3
+    ld c,1
+    CALL hUGE_mute_channel
+    
 
     ld a,0
     ld [rSTAT], a ; disable LCD interrupts
