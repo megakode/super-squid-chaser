@@ -10,7 +10,7 @@ VBlankHandler::	; 40 cycles
 SECTION	"HBlank Handler",ROM0[$48]
 HBlankHandler::	; 40 cycles
 	push	af		    ; 4
-	; push	hl		    ; 4
+
 
 	ldh	a,[rLY]		    ; 3
     cp 70              ; 2
@@ -30,24 +30,24 @@ HBlankHandler::	; 40 cycles
 
 .done
 
-	; pop	hl		; 3
+
 	pop	af		; 3
 	reti	
 
 SECTION "Title screen assets", ROM0
 
 VBlank:
-    push	af		    ; 4
-    push bc            ; 4
-    push de		    ; 4
+    push af
+    push bc
+    push de
     push hl
 
-    call hUGE_dosound
+    ; call hUGE_dosound
 
-    pop	hl		; 3
-    pop	de		    ; 3
-    pop	bc		    ; 3
-    pop	af		; 3
+    pop	hl
+    pop	de
+    pop	bc
+    pop	af
     ret
 
 
