@@ -1,61 +1,43 @@
-# gb-boilerplate
+# Introduction
 
-A minimal, customizable, ready-to-compile boilerplate for Game Boy RGBDS projects.
+Super Squid Chaser is a simple arcade style game for the original Gameboy (DMG), written in assembly for the RGBDS assembler.
 
-## Downloading
+## Requirements
 
-You can simply clone the repository using Git, or if you just want to download this, click the `Clone or download` button up and to the right of this. This repo is also usable as a GitHub template for creating new repositories.
+- GNU Make
+- RGBDS (v0.9.0 or later)
 
-## Setting up
+## Building
 
-Make sure you have [RGBDS](https://github.com/rednex/rgbds), at least version 0.4.0, and GNU Make installed. Python 3 is required for the PB16 compressor bundled as a usage example, but that script is optional.
+Use the included VS Code task or build from the command line using GNU make:
 
-## Customizing
+```make```
 
-Edit `project.mk` to customize most things specific to the project (like the game name, file name and extension, etc.).
-Everything has accompanying doc comments.
+## Engine features
 
-Everything in the `src` directory is the source, and can be freely modified however you want.
-Any `.asm` files in that directory (and its sub-directories, recursively) will be individually assembled, automatically.
-If you need some files not to be assembled directly (because they are only meant to be `INCLUDE`d), you can either rename them (typically, to `.inc`), or move them outside of `src` (typically, to a directory called `include`).
+The engine support a lof of stuff that is barely used, which is why the games takes up a little over 5000 lines of assembly.
 
-The file at `src/assets/build_date.asm` is compiled individually to include a build date in your ROM.
-Always comes in handy.
+- Dynamic animated sprite subsystem
+- Animated background tile subsystem
+- Collision detection (tile-tile and tile-background including scroll compensation)
 
-If you want to add resources, I recommend using the `src/assets` directory.
-Add rules in the Makefile; an example is provided for compressing files using PB16 (a variation of [PackBits](https://wiki.nesdev.com/w/index.php/Tile_compression#PackBits)).
+## Instructions
 
-## Licensing
+Use the D-pad to control the ship and 'A' to fire.
 
-You must keep LICENSE-gb-boilerplate in your repository, but it will not affect the rest of your project (i.e. your files).
-Attribution in the README is appreciated, for instance like this:
-```
-This project uses the [gb-boilerplate](https://codeberg.org/ISSOtm/gb-boilerplate) template by ISSOtm, under the zlib license.
-```
+Collect ammo.
 
-## Compiling
+Catch the squids.
 
-Simply open you favorite command prompt / terminal, place yourself in this directory (the one the Makefile is located in), and run the command `make`.
-This should create a bunch of things, including the output in the `bin` directory.
+Avoid the mines.
 
-Pass the `-s` flag to `make` if it spews too much input for your tastes.
-Päss the `-j <N>` flag to `make` to build more things in parallel, replacing `<N>` with however many things you want to build in parallel; your number of (logical) CPU cores is often a good pick (so, `-j 8` for me), run the command `nproc` to obtain it.
+## Screenshots
 
-If you get errors that you don't understand, try running `make clean`.
-If that gives the same error, try deleting the `assets` directory.
-If that still doesn't work, try deleting the `bin` and `obj` directories as well.
-If that still doesn't work, feel free to ask for help.
+<img width="318" height="287" alt="screen1" src="https://github.com/user-attachments/assets/d841f2c4-8de9-4d0e-a938-df016ef9a739" />
 
-## See also
+![gameplay](https://github.com/user-attachments/assets/b2196733-66ed-4473-a2e9-c7d5d083c323)
 
-If you want something less barebones, already including some "base" code, check out [gb-starter-kit](https://codeberg.org/ISSOtm/gb-starter-kit).
 
-Perhaps [a gbdev style guide](https://gbdev.io/guides/asmstyle) may be of interest to you?
+## Links
 
-I recommend the [BGB](https://bgb.bircd.org) emulator for developing ROMs on Windows and, via Wine, Linux and macOS (64-bit build available for Catalina).
-[SameBoy](https://github.com/LIJI32/SameBoy) is more accurate, but has a more lackluster interface outside of macOS.
-
-### Libraries
-
-- [Variable-width font engine](https://codeberg.org/ISSOtm/gb-vwf)
-- [Structs in RGBDS](https://codeberg.org/ISSOtm/rgbds-structs)
+Check the games website for more information: [megakode.com/games/supersquid](https://megakode.com/games/supersquid/)
