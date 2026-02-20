@@ -36,7 +36,7 @@ MBC := 0x00
 SRAMSIZE := 0x00
 
 # ROM name.
-ROMNAME := sbace
+ROMNAME := ssc
 ROMEXT  := gb
 
 
