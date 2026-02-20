@@ -25,3 +25,23 @@ jobs:
         with:
           name: ssc-rom
           path: bin/ssc.gb
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download ROM artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ssc-rom
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Build ${{ github.run_number }}
+          files: ssc.gb
